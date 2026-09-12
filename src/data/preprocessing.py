@@ -1,5 +1,3 @@
-import pandas as pd
-
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -45,3 +43,21 @@ def create_preprocessor(data):
     )
 
     return preprocessor
+
+
+def preprocess_train_test(train_data, test_data):
+    X_train, y_train = separate_features_and_labels(train_data)
+    X_test, y_test = separate_features_and_labels(test_data)
+
+    preprocessor = create_preprocessor(X_train)
+
+    X_train_processed = preprocessor.fit_transform(X_train)
+    X_test_processed = preprocessor.transform(X_test)
+
+    return (
+        X_train_processed,
+        X_test_processed,
+        y_train,
+        y_test,
+        preprocessor
+    )
