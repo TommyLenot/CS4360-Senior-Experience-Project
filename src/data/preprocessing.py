@@ -2,6 +2,8 @@ from pathlib import Path
 import joblib
 
 from sklearn.compose import ColumnTransformer
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
@@ -30,7 +32,7 @@ def get_numerical_columns(data):
 def create_preprocessor(data):
     numerical_columns = get_numerical_columns(data)
 
-    preprocessor = ColumnTransformer(
+    column_transformer = ColumnTransformer(
         transformers=[
             (
                 "categorical",
@@ -42,6 +44,13 @@ def create_preprocessor(data):
                 StandardScaler(),
                 numerical_columns
             )
+        ]
+    )
+
+    preprocessor = Pipeline(
+        steps=[
+            ("column_transformer", column_transformer),
+            ("variance_filter", VarianceThreshold(threshold=0.0))
         ]
     )
 
