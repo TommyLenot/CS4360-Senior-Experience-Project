@@ -240,7 +240,6 @@ preprocessor -> fitted preprocessing pipeline
 
 The processed data has been compatibility-tested with:
 
-- Isolation Forest
 - Logistic Regression
 - Random Forest
 
@@ -282,10 +281,6 @@ The notebook currently contains:
 - Feature distributions
 - Correlation analysis
 - Data preprocessing
-- Isolation Forest baseline
-- Confusion matrix
-- Precision, recall, and F1 evaluation
-- Anomaly score generation
 
 
 # CICIDS2017 Data Pipeline
@@ -851,7 +846,8 @@ Multiple detection results can also be replayed sequentially.
 
 This provides a controlled dataset-replay mechanism for integration and testing. It does not represent live packet capture or genuine real-time network ingestion.
 
-The replay component does not run Isolation Forest, Mahalanobis distance, supervised detection models, or the AI investigation agent. Those responsibilities remain separated from the ingestion interface.
+The replay component does not run detection models or the AI investigation agent. Those responsibilities remain separated from the ingestion interface.
+
 
 
 ## Pending Alert Handoff
@@ -1025,7 +1021,6 @@ The tests verify:
 - Rejection of invalid binary labels
 - Processed-data saving and loading
 - Saved model-data handoff
-- Isolation Forest compatibility
 - Logistic Regression compatibility
 - Random Forest compatibility
 - CICIDS2017 feature and label separation
@@ -1133,7 +1128,6 @@ CS4360-Senior-Experience-Project/
 |   +-- test_cicids_preprocessing.py
 |   +-- test_data_validation.py
 |   +-- test_investigation_result.py
-|   +-- test_isolation_forest_compatibility.py
 |   +-- test_model_data_handoff.py
 |   +-- test_preprocessing.py
 |   +-- test_processed_data_io.py
@@ -1166,11 +1160,6 @@ CS4360-Senior-Experience-Project/
 - Numerical feature scaling
 - Train/test preprocessing
 - Automated preprocessing tests
-- Isolation Forest compatibility testing
-- Isolation Forest baseline
-- Confusion matrix
-- Precision, recall, and F1 evaluation
-- Anomaly scores
 
 
 ## Week 3 - Data/DevOps
@@ -1184,7 +1173,6 @@ CS4360-Senior-Experience-Project/
 - Added automatic zero-variance feature removal.
 - Reduced the processed feature space from 122 to 121 features by removing a zero-variance feature.
 - Added saved-data handoff testing.
-- Verified Isolation Forest compatibility.
 - Verified Logistic Regression compatibility.
 - Verified Random Forest compatibility.
 - Investigated matrix properties relevant to the Mahalanobis distance handoff.
