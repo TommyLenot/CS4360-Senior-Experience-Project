@@ -648,23 +648,20 @@ Current verified values:
 ```text
 X_train: (2262296, 70) float32
 X_test:  (565580, 70) float32
-
 Training binary labels: 2,262,296
 Test binary labels:       565,580
-
 Training attack labels: 2,262,296
 Test attack labels:       565,580
-
 Training finite: True
 Test finite:     True
 ```
 
 
-# Alert Ingestion Pipeline
+# Alert Ingestion and Investigation Handoff Pipeline
 
 ## Week 5 Alert Handoff
 
-Week 5 adds a controlled alert-ingestion interface between the detection component and the AI-assisted investigation component.
+Week 5 adds a controlled interface between the detection component and the AI-assisted investigation component.
 
 The ingestion pipeline is located in:
 
@@ -681,20 +678,36 @@ Detection Component
         |
         | detection result
         v
-   AlertReplay
+    AlertReplay
         |
         v
       Alert
         |
         v
-   AlertQueue
+    AlertQueue
         |
         | pending alert
         v
+   AlertHandoff
+        |
+        v
 AI Investigation Component
+        |
+        | verdict, confidence score,
+        | explanation
+        v
+InvestigationResult
+        |
+        v
+    AlertQueue
+        |
+        v
+Completed Alert
 ```
 
-The detection and AI investigation components remain separate from the ingestion pipeline.
+The detection component, ingestion interface, and AI investigation component remain separate.
+
+The ingestion pipeline does not decide whether an alert is malicious, generate AI confidence scores, or create investigation explanations. It provides the data structures and handoff interfaces needed for those components to communicate.
 
 
 ## Alert Structure
@@ -779,9 +792,30 @@ It supports:
 - Marking an alert as completed
 - Marking an alert as failed
 - Rejecting duplicate alert IDs
-- Rejecting invalid objects
+- Rejecting invalid alert objects
+- Storing an `InvestigationResult` for an alert
+- Retrieving a stored investigation result
+- Checking whether an alert has an investigation result
+- Rejecting results for unknown alerts
+- Rejecting duplicate investigation results
 
-This queue is intentionally lightweight. It establishes the interface needed by the project without introducing a production message broker or claiming genuine real-time processing.
+When a valid `InvestigationResult` is stored for an existing alert, the queue changes that alert's status from `pending` to `completed`.
+
+The queue stores alerts and investigation results separately and associates them using the alert's unique `alert_id`.
+
+Conceptually:
+
+```text
+AlertQueue
+
+_alerts
+    alert_id -> Alert
+
+_results
+    alert_id -> InvestigationResult
+```
+
+This queue is intentionally lightweight and currently exists in memory. It establishes the interface needed by the project without introducing a production message broker or claiming genuine real-time processing.
 
 
 ## Controlled Alert Replay
@@ -820,6 +854,153 @@ This provides a controlled dataset-replay mechanism for integration and testing.
 The replay component does not run Isolation Forest, Mahalanobis distance, supervised detection models, or the AI investigation agent. Those responsibilities remain separated from the ingestion interface.
 
 
+## Pending Alert Handoff
+
+Pending-alert handoff is handled by:
+
+```text
+src/ingestion/handoff.py
+```
+
+`AlertHandoff` provides a simple interface that allows the investigation component to retrieve alerts that are waiting for investigation.
+
+It supports:
+
+- Retrieving the next pending alert
+- Retrieving the next pending alert as a dictionary
+- Counting pending alerts
+- Checking whether pending alerts are available
+
+If the queue contains no pending alerts, the handoff returns `None`.
+
+Alerts with a status of `completed` or `failed` are skipped and are not handed to the investigation component as pending work.
+
+The handoff currently retrieves pending alerts using the order in which they were added to the in-memory queue.
+
+This component does not perform the investigation itself. Its responsibility is only to provide the pending alert to the component responsible for AI-assisted investigation.
+
+
+## Investigation Result Structure
+
+Investigation results are defined in:
+
+```text
+src/ingestion/result.py
+```
+
+`InvestigationResult` defines the standardized information that can be returned after an alert has been investigated.
+
+Each investigation result contains:
+
+```text
+alert_id
+verdict
+confidence_score
+explanation
+completed_at
+```
+
+Valid verdicts are:
+
+```text
+benign
+suspicious
+malicious
+inconclusive
+```
+
+The `alert_id` connects the investigation result to the alert that was investigated.
+
+The `confidence_score` must be a numeric value between:
+
+```text
+0.0 and 1.0
+```
+
+The investigation confidence score is separate from the anomaly score produced by the detection component.
+
+```text
+anomaly_score
+    -> produced by the anomaly-detection component
+
+confidence_score
+    -> produced by the investigation component
+```
+
+Neither value is automatically treated by the ingestion pipeline as the probability that an attack occurred.
+
+The ingestion pipeline does not determine how the investigation confidence score is calculated. The AI investigation component is responsible for generating and evaluating its confidence score.
+
+The `explanation` field contains the investigation component's explanation for its verdict and cannot be empty.
+
+Each result also receives a UTC `completed_at` timestamp unless one is explicitly supplied.
+
+An example investigation result is:
+
+```python
+{
+    "alert_id": "example-alert-id",
+    "verdict": "malicious",
+    "confidence_score": 0.85,
+    "explanation": (
+        "The alert contains network behavior "
+        "that requires investigation."
+    ),
+    "completed_at": "2026-09-19T00:00:00+00:00"
+}
+```
+
+
+## Investigation Result Return Path
+
+After the investigation component finishes analyzing an alert, its standardized `InvestigationResult` can be returned to the `AlertQueue`.
+
+The queue verifies that:
+
+- The returned object is an `InvestigationResult`.
+- The corresponding `alert_id` exists.
+- The alert does not already have an investigation result.
+
+If the result is accepted:
+
+1. The result is stored using its `alert_id`.
+2. The corresponding alert is located.
+3. The alert status is changed to `completed`.
+4. The result can later be retrieved using the same alert ID.
+
+The complete controlled integration path is therefore:
+
+```text
+Detection Result
+      |
+      v
+AlertReplay
+      |
+      v
+Alert
+      |
+      v
+AlertQueue
+      |
+      v
+AlertHandoff
+      |
+      v
+AI Investigation Component
+      |
+      v
+InvestigationResult
+      |
+      v
+AlertQueue
+      |
+      v
+Completed Alert
+```
+
+This establishes both directions of the detection-to-investigation interface without implementing the AI investigation logic inside the ingestion component.
+
+
 # Automated Testing
 
 ## Running Tests
@@ -830,7 +1011,7 @@ From the project root with `.venv` activated:
 python -m pytest -v
 ```
 
-The current automated test suite contains **51 tests**.
+The current automated test suite contains **89 tests**.
 
 The tests verify:
 
@@ -864,15 +1045,32 @@ The tests verify:
 - Controlled detection-result replay
 - Required detection-result field validation
 - Multiple-alert replay
+- Pending-alert handoff
+- Pending-alert counting
+- Completed-alert handoff filtering
+- Failed-alert handoff filtering
+- Investigation-result creation and serialization
+- Investigation-result alert-ID validation
+- Investigation verdict validation
+- Investigation confidence-score validation
+- Investigation explanation validation
+- Investigation completion timestamps
+- Investigation-result storage
+- Investigation-result retrieval
+- Alert/result association using `alert_id`
+- Automatic completion after storing a result
+- Rejection of results for missing alerts
+- Rejection of duplicate investigation results
+- Rejection of invalid result objects
 
 The CICIDS2017 automated tests use small synthetic datasets rather than loading the complete processed dataset. This keeps the normal test suite fast and avoids requiring hundreds of megabytes of model data for every test run.
 
-The Week 5 ingestion tests use small synthetic alert and detection-result objects. They do not require the full CICIDS2017 dataset or processed model files, which keeps the ingestion tests fast and independent of model training.
+The Week 5 ingestion and handoff tests use small synthetic alerts, detection results, and investigation results. They do not require the full CICIDS2017 dataset or processed model files, which keeps these tests fast and independent of model training or AI investigation.
 
 The current verified result is:
 
 ```text
-51 passed
+89 passed in 3.49s
 ```
 
 
@@ -921,15 +1119,20 @@ CS4360-Senior-Experience-Project/
 |   +-- ingestion/
 |       +-- __init__.py
 |       +-- alert.py
+|       +-- handoff.py
 |       +-- queue.py
 |       +-- replay.py
+|       +-- result.py
 |
 +-- tests/
 |   +-- test_alert.py
+|   +-- test_alert_handoff.py
 |   +-- test_alert_queue.py
+|   +-- test_alert_queue_results.py
 |   +-- test_alert_replay.py
 |   +-- test_cicids_preprocessing.py
 |   +-- test_data_validation.py
+|   +-- test_investigation_result.py
 |   +-- test_isolation_forest_compatibility.py
 |   +-- test_model_data_handoff.py
 |   +-- test_preprocessing.py
@@ -1034,11 +1237,31 @@ The Week 4 Data/DevOps work provides a reusable CICIDS2017 data pipeline and mod
 - Added a controlled detection-result replay component.
 - Added support for sequential replay of multiple detection results.
 - Added validation for required detection-result fields.
-- Added 30 automated tests for the Week 5 ingestion components.
-- Expanded the complete automated test suite from 21 to 51 passing tests.
+- Added a pending-alert handoff interface for the investigation component.
+- Added retrieval of the next pending alert.
+- Added dictionary-based pending-alert handoff.
+- Added pending-alert counting and availability checks.
+- Added filtering so completed and failed alerts are not returned as pending work.
+- Added a standardized `InvestigationResult` structure.
+- Added investigation verdicts for benign, suspicious, malicious, and inconclusive results.
+- Added validation for investigation confidence scores.
+- Kept investigation confidence separate from the detection anomaly score.
+- Added required investigation explanations.
+- Added UTC completion timestamps for investigation results.
+- Added storage of investigation results in the alert queue.
+- Added retrieval of investigation results using `alert_id`.
+- Added protection against results for nonexistent alerts.
+- Added protection against duplicate investigation results.
+- Added automatic transition from `pending` to `completed` when an investigation result is stored.
+- Added 68 automated tests covering the Week 5 alert ingestion, handoff, and investigation-result interface.
+- Expanded the complete automated test suite from 21 to 89 passing tests.
 - Verified all existing Week 1-4 tests continue to pass.
 
-The Week 5 Data/DevOps work establishes a controlled interface between anomaly detection and AI-assisted investigation. The current ingestion pipeline supports dataset replay and batch-style integration testing rather than genuine real-time network traffic processing. Detection-model implementation and AI investigation logic remain responsibilities of their respective components.
+The Week 5 Data/DevOps work establishes a controlled two-way interface between anomaly detection and AI-assisted investigation. Detection results can be converted into standardized alerts, queued, and handed to the investigation component. Standardized investigation results can then be returned to the queue and associated with the original alert.
+
+The current ingestion pipeline supports dataset replay and batch-style integration testing rather than genuine real-time network traffic processing.
+
+The Data/DevOps components do not generate the AI verdict, calculate the AI investigation confidence score, or produce the investigation explanation. Those responsibilities remain with the AI investigation component.
 
 
 # Important Notes
