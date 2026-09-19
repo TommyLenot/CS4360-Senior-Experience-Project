@@ -73,6 +73,7 @@ This installs the packages currently used by the project, including tools for:
 - Streamlit
 - Automated testing with pytest
 
+
 # NSL-KDD Data Pipeline
 
 ## NSL-KDD Dataset
@@ -123,6 +124,7 @@ Raw columns:            43
 
 The 43 raw columns consist of the network features along with the attack label and difficulty field.
 
+
 ## Prepare the NSL-KDD Dataset
 
 The project contains a reusable NSL-KDD data preparation pipeline. This allows team members to generate model-ready data without running preprocessing manually through the Jupyter notebook.
@@ -155,13 +157,13 @@ A successful run currently produces:
 
 ```text
 Training shape:           (125973, 43)
-Test shape:               (22544, 43)
-
+Test shape:                (22544, 43)
 Processed training shape: (125973, 121)
-Processed test shape:     (22544, 121)
+Processed test shape:      (22544, 121)
 ```
 
 The preprocessing pipeline is fit using the training data. The fitted preprocessing transformations are then applied to the test data so that the training and test datasets use the same feature space.
+
 
 ## NSL-KDD Processed Data Validation
 
@@ -179,6 +181,7 @@ Before the processed data is saved, the pipeline verifies that:
 The preprocessing pipeline also automatically removes features with zero variance.
 
 During development, `num_outbound_cmds` was identified as a zero-variance NSL-KDD feature. The pipeline removes zero-variance features automatically rather than hard-coding a specific column.
+
 
 ## NSL-KDD Generated Processed Files
 
@@ -203,6 +206,7 @@ data/processed/
 These files are generated artifacts and do not need to be manually edited.
 
 The processed NSL-KDD feature matrices currently contain 121 model-ready features.
+
 
 ## Loading NSL-KDD Processed Data
 
@@ -242,6 +246,7 @@ The processed data has been compatibility-tested with:
 
 These compatibility tests verify that the preprocessing/data pipeline can successfully provide input to the models. They do not replace the full model training, tuning, or statistical evaluation performed by the detection component.
 
+
 ## Mahalanobis Distance Data Note
 
 The Week 3 detection work includes Mahalanobis distance.
@@ -251,6 +256,7 @@ The processed NSL-KDD data is numeric, finite, and contains no zero-variance fea
 This means some processed dimensions are linearly dependent. The data pipeline does not automatically remove these additional dimensions because doing so would make a modeling decision on behalf of the detection component.
 
 The Mahalanobis implementation should therefore account for the possibility of a singular or near-singular covariance matrix.
+
 
 ## Running the NSL-KDD Jupyter Notebook
 
@@ -280,6 +286,7 @@ The notebook currently contains:
 - Confusion matrix
 - Precision, recall, and F1 evaluation
 - Anomaly score generation
+
 
 # CICIDS2017 Data Pipeline
 
@@ -319,6 +326,7 @@ Unlike NSL-KDD, these files already contain numeric model features and therefore
 
 The available features include `Destination Port` and network-flow statistics. The MachineLearningCSV files used by this project do not contain source or destination IP address columns.
 
+
 ## CICIDS2017 Loading and Cleaning
 
 CICIDS2017 loading is handled by:
@@ -346,6 +354,7 @@ Total cleaned records: 2,827,876
 During cleaning, approximately 0.10% of the original records were removed because they contained invalid flow-rate values.
 
 Duplicate network-flow records are not automatically removed. Repeated network flows may represent legitimate repeated observations, and removing them would change the dataset distribution. Duplicate handling is therefore not performed automatically by the data-loading pipeline.
+
 
 ## CICIDS2017 Label Distribution
 
@@ -376,6 +385,7 @@ The attack categories include:
 - Heartbleed
 
 Some attack categories contain very few records. The data preparation process therefore preserves the original attack labels in addition to producing binary benign/attack labels.
+
 
 ## CICIDS2017 Diagnostic Scripts
 
@@ -448,6 +458,7 @@ python check_cicids_labels.py
 
 This script calculates the cleaned label distribution across all eight CICIDS2017 files and reports both the original attack categories and the combined benign/attack distribution.
 
+
 ## Prepare the CICIDS2017 Dataset
 
 The reusable CICIDS2017 preparation script is:
@@ -485,18 +496,17 @@ The preparation process:
 17. Validates the final model-ready data.
 18. Saves the processed data and fitted preprocessor.
 
+
 ## CICIDS2017 Train/Test Handoff
 
 The current complete CICIDS2017 preparation produces:
 
 ```text
 Total cleaned records: 2,827,876
-
-Training records: 2,262,296
-Test records:       565,580
-
-Original model features: 78
-Processed features:      70
+Training records:      2,262,296
+Test records:            565,580
+Original model features:      78
+Processed features:           70
 ```
 
 The binary training distribution is:
@@ -524,6 +534,7 @@ Test:     2
 
 The CICIDS2017 preparation pipeline creates non-overlapping training and test partitions within each source file.
 
+
 ## CICIDS2017 Processed Data Validation
 
 Before saving the final model-ready data, the pipeline verifies that:
@@ -548,6 +559,7 @@ Test:     (565580, 70) float32
 Both arrays have been verified to contain no NaN or infinite values.
 
 The use of `float32` reduces the memory required by the processed feature matrices while retaining the same record and feature counts.
+
 
 ## CICIDS2017 Generated Processed Files
 
@@ -584,6 +596,7 @@ attack_labels_train / attack_labels_test
 ```
 
 This allows the detection component to perform binary anomaly evaluation while still retaining the original attack category for additional analysis.
+
 
 ## Loading CICIDS2017 Processed Data
 
@@ -646,6 +659,167 @@ Training finite: True
 Test finite:     True
 ```
 
+
+# Alert Ingestion Pipeline
+
+## Week 5 Alert Handoff
+
+Week 5 adds a controlled alert-ingestion interface between the detection component and the AI-assisted investigation component.
+
+The ingestion pipeline is located in:
+
+```text
+src/ingestion/
+```
+
+The current pipeline does not perform genuine real-time network traffic processing. It provides a controlled replay and batch-style interface that allows detection results to be converted into standardized alerts and passed to later investigation components.
+
+The current flow is:
+
+```text
+Detection Component
+        |
+        | detection result
+        v
+   AlertReplay
+        |
+        v
+      Alert
+        |
+        v
+   AlertQueue
+        |
+        | pending alert
+        v
+AI Investigation Component
+```
+
+The detection and AI investigation components remain separate from the ingestion pipeline.
+
+
+## Alert Structure
+
+Standardized alerts are defined in:
+
+```text
+src/ingestion/alert.py
+```
+
+Each alert contains:
+
+```text
+alert_id
+timestamp
+dataset
+record_index
+anomaly_score
+model_prediction
+actual_label
+attack_type
+features
+status
+```
+
+The required detection-result fields are:
+
+```text
+dataset
+record_index
+anomaly_score
+model_prediction
+```
+
+The following fields are optional:
+
+```text
+actual_label
+attack_type
+features
+```
+
+`actual_label` and `attack_type` represent dataset ground truth used during testing and evaluation. They are kept separate from `model_prediction` and should not be interpreted as information discovered by the anomaly-detection model.
+
+The `features` field allows selected network-record information to accompany an alert. For CICIDS2017 this can include actual available fields such as `Destination Port` and network-flow statistics.
+
+The CICIDS2017 MachineLearningCSV files used by this project do not contain source or destination IP address columns, so the ingestion pipeline does not generate or fabricate IP addresses.
+
+Each alert automatically receives:
+
+- A unique UUID-based `alert_id`
+- A UTC timestamp
+- An initial status of `pending`
+
+Valid investigation statuses are:
+
+```text
+pending
+completed
+failed
+```
+
+These statuses allow later components to distinguish alerts waiting for investigation from successfully completed or failed investigations.
+
+
+## Alert Queue
+
+Alert storage and state tracking are handled by:
+
+```text
+src/ingestion/queue.py
+```
+
+The current `AlertQueue` is an in-memory queue used as a simple integration point during development.
+
+It supports:
+
+- Adding alerts
+- Retrieving an alert by ID
+- Retrieving all alerts
+- Retrieving pending alerts
+- Marking an alert as completed
+- Marking an alert as failed
+- Rejecting duplicate alert IDs
+- Rejecting invalid objects
+
+This queue is intentionally lightweight. It establishes the interface needed by the project without introducing a production message broker or claiming genuine real-time processing.
+
+
+## Controlled Alert Replay
+
+Controlled alert replay is handled by:
+
+```text
+src/ingestion/replay.py
+```
+
+`AlertReplay` accepts detection-result records and converts them into standardized `Alert` objects.
+
+A detection result can contain:
+
+```python
+{
+    "dataset": "CICIDS2017",
+    "record_index": 1250,
+    "anomaly_score": 0.73,
+    "model_prediction": 1,
+    "actual_label": 1,
+    "attack_type": "DDoS",
+    "features": {
+        "Destination Port": 80,
+        "Flow Duration": 5000
+    }
+}
+```
+
+The replay component validates that the required fields are present, creates an `Alert`, and places the alert into the `AlertQueue`.
+
+Multiple detection results can also be replayed sequentially.
+
+This provides a controlled dataset-replay mechanism for integration and testing. It does not represent live packet capture or genuine real-time network ingestion.
+
+The replay component does not run Isolation Forest, Mahalanobis distance, supervised detection models, or the AI investigation agent. Those responsibilities remain separated from the ingestion interface.
+
+
 # Automated Testing
 
 ## Running Tests
@@ -656,7 +830,7 @@ From the project root with `.venv` activated:
 python -m pytest -v
 ```
 
-The current automated test suite contains **21 tests**.
+The current automated test suite contains **51 tests**.
 
 The tests verify:
 
@@ -679,14 +853,28 @@ The tests verify:
 - CICIDS2017 train/test preprocessing compatibility
 - CICIDS2017 `float32` output
 - CICIDS2017 finite-value output
+- Alert creation and serialization
+- Alert field validation
+- Optional ground-truth handling
+- Alert queue insertion and retrieval
+- Pending alert filtering
+- Completed and failed investigation states
+- Duplicate alert rejection
+- Invalid queue-object rejection
+- Controlled detection-result replay
+- Required detection-result field validation
+- Multiple-alert replay
 
 The CICIDS2017 automated tests use small synthetic datasets rather than loading the complete processed dataset. This keeps the normal test suite fast and avoids requiring hundreds of megabytes of model data for every test run.
+
+The Week 5 ingestion tests use small synthetic alert and detection-result objects. They do not require the full CICIDS2017 dataset or processed model files, which keeps the ingestion tests fast and independent of model training.
 
 The current verified result is:
 
 ```text
-21 passed
+51 passed
 ```
+
 
 # Current Project Structure
 
@@ -729,8 +917,17 @@ CS4360-Senior-Experience-Project/
 |   |   +-- prepare_cicids_data.py
 |   |
 |   +-- detection/
+|   |
+|   +-- ingestion/
+|       +-- __init__.py
+|       +-- alert.py
+|       +-- queue.py
+|       +-- replay.py
 |
 +-- tests/
+|   +-- test_alert.py
+|   +-- test_alert_queue.py
+|   +-- test_alert_replay.py
 |   +-- test_cicids_preprocessing.py
 |   +-- test_data_validation.py
 |   +-- test_isolation_forest_compatibility.py
@@ -747,6 +944,7 @@ CS4360-Senior-Experience-Project/
 +-- requirements.txt
 ```
 
+
 # Current Progress
 
 ## Week 1
@@ -755,6 +953,7 @@ CS4360-Senior-Experience-Project/
 - NSL-KDD data loading
 - Exploratory data analysis
 - Dataset distribution and feature analysis
+
 
 ## Week 2
 
@@ -769,6 +968,7 @@ CS4360-Senior-Experience-Project/
 - Confusion matrix
 - Precision, recall, and F1 evaluation
 - Anomaly scores
+
 
 ## Week 3 - Data/DevOps
 
@@ -788,6 +988,7 @@ CS4360-Senior-Experience-Project/
 - Expanded the automated test suite to 15 passing tests.
 
 The Week 3 Data/DevOps work prepares a reusable model-data interface for the detection work while leaving model implementation, tuning, and statistical comparison to the detection component.
+
 
 ## Week 4 - Data/DevOps
 
@@ -814,6 +1015,31 @@ The Week 3 Data/DevOps work prepares a reusable model-data interface for the det
 - Expanded the complete automated test suite from 15 to 21 passing tests.
 
 The Week 4 Data/DevOps work provides a reusable CICIDS2017 data pipeline and model-data handoff. Detection-model implementation, model tuning, threshold selection, and statistical performance evaluation remain responsibilities of the detection component.
+
+
+## Week 5 - Data/DevOps
+
+- Added a standardized alert structure for detection-to-investigation handoff.
+- Added automatically generated unique alert IDs.
+- Added UTC timestamps for generated alerts.
+- Added pending, completed, and failed investigation states.
+- Kept model predictions separate from dataset ground-truth labels.
+- Added optional original attack-type information for evaluation.
+- Added support for carrying selected network-record features with an alert.
+- Added validation for required alert fields.
+- Added an in-memory alert queue for controlled integration testing.
+- Added pending-alert retrieval.
+- Added completed and failed alert-state handling.
+- Added duplicate alert-ID protection.
+- Added a controlled detection-result replay component.
+- Added support for sequential replay of multiple detection results.
+- Added validation for required detection-result fields.
+- Added 30 automated tests for the Week 5 ingestion components.
+- Expanded the complete automated test suite from 21 to 51 passing tests.
+- Verified all existing Week 1-4 tests continue to pass.
+
+The Week 5 Data/DevOps work establishes a controlled interface between anomaly detection and AI-assisted investigation. The current ingestion pipeline supports dataset replay and batch-style integration testing rather than genuine real-time network traffic processing. Detection-model implementation and AI investigation logic remain responsibilities of their respective components.
+
 
 # Important Notes
 
