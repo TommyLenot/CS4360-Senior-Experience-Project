@@ -1,3 +1,5 @@
+import time
+
 from src.ingestion.alert import Alert
 from src.ingestion.queue import AlertQueue
 
@@ -57,3 +59,17 @@ class AlertReplay:
             alerts.append(alert)
 
         return alerts
+
+    def replay_stream(self, results, delay_seconds=0):
+        if delay_seconds < 0:
+            raise ValueError(
+                "delay_seconds cannot be negative."
+            )
+
+        for result in results:
+            alert = self.ingest_result(result)
+
+            yield alert
+
+            if delay_seconds > 0:
+                time.sleep(delay_seconds)

@@ -155,3 +155,101 @@ def test_missing_required_field_rejected(
         replay.ingest_result(result)
 
     assert queue.is_empty()
+
+
+def test_replay_stream_processes_results_in_order():
+    queue = AlertQueue()
+    replay = AlertReplay(queue)
+
+    results = [
+        create_detection_result(1),
+        create_detection_result(2),
+        create_detection_result(3)
+    ]
+
+    alerts = list(
+        replay.replay_stream(
+            results,
+            delay_seconds=0
+        )
+    )
+
+    assert queue.size() == 3
+
+    assert [
+        alert.record_index
+        for alert in alerts
+    ] == [1, 2, 3]
+
+
+def test_replay_stream_adds_alerts_incrementally():
+    queue = AlertQueue()
+    replay = AlertReplay(queue)
+
+    results = [
+        create_detection_result(1),
+        create_detection_result(2)
+    ]
+
+    stream = replay.replay_stream(
+        results,
+        delay_seconds=0
+    )
+
+    assert queue.size() == 0
+
+    first_alert = next(stream)
+
+    assert first_alert.record_index == 1
+    assert queue.size() == 1
+
+    second_alert = next(stream)
+
+    assert second_alert.record_index == 2
+    assert queue.size() == 2
+
+    with pytest.raises(StopIteration):
+        next(stream)
+
+
+def test_replay_stream_alerts_start_pending():
+    queue = AlertQueue()
+    replay = AlertReplay(queue)
+
+    results = [
+        create_detection_result(1),
+        create_detection_result(2)
+    ]
+
+    list(
+        replay.replay_stream(
+            results,
+            delay_seconds=0
+        )
+    )
+
+    pending_alerts = queue.get_pending_alerts()
+
+    assert len(pending_alerts) == 2
+
+
+def test_replay_stream_rejects_negative_delay():
+    queue = AlertQueue()
+    replay = AlertReplay(queue)
+
+    results = [
+        create_detection_result(1)
+    ]
+
+    stream = replay.replay_stream(
+        results,
+        delay_seconds=-1
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="delay_seconds cannot be negative"
+    ):
+        next(stream)
+
+    assert queue.is_empty()
