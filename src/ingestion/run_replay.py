@@ -29,29 +29,34 @@ def load_detection_results(input_path):
 def run_replay(
     input_path,
     delay_seconds=0,
-    limit=None
+    limit=None,
+    anomalies_only=False,
 ):
     results = load_detection_results(input_path)
 
     if limit is not None:
         if limit < 1:
-            raise ValueError(
-                "limit must be at least 1."
-            )
+            raise ValueError("limit must be at least 1.")
 
         results = results[:limit]
 
     queue = AlertQueue()
-    replay = AlertReplay(queue)
+    replay = AlertReplay(
+        queue,
+        anomalies_only=anomalies_only,
+    )
 
     print(
         f"Starting controlled replay of "
         f"{len(results)} detection results."
     )
 
+    if anomalies_only:
+        print("Anomaly-only filtering enabled.")
+
     for alert in replay.replay_stream(
         results,
-        delay_seconds=delay_seconds
+        delay_seconds=delay_seconds,
     ):
         print(
             f"Alert {alert.alert_id} | "
@@ -80,29 +85,27 @@ def parse_args():
 
     parser.add_argument(
         "input",
-        help=(
-            "Path to a JSON file containing "
-            "detection results."
-        )
+        help="Path to a JSON file containing detection results.",
     )
 
     parser.add_argument(
         "--delay",
         type=float,
         default=0,
-        help=(
-            "Seconds to wait between replayed "
-            "results. Default: 0."
-        )
+        help="Seconds to wait between replayed results. Default: 0.",
     )
 
     parser.add_argument(
         "--limit",
         type=int,
         default=None,
-        help=(
-            "Maximum number of results to replay."
-        )
+        help="Maximum number of results to replay.",
+    )
+
+    parser.add_argument(
+        "--anomalies-only",
+        action="store_true",
+        help="Create alerts only for records predicted as anomalous.",
     )
 
     return parser.parse_args()
@@ -114,7 +117,8 @@ def main():
     run_replay(
         input_path=args.input,
         delay_seconds=args.delay,
-        limit=args.limit
+        limit=args.limit,
+        anomalies_only=args.anomalies_only,
     )
 
 
