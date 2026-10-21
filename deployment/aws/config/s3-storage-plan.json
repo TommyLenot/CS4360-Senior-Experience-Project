@@ -1,0 +1,15 @@
+﻿{
+  "region": "us-east-1",
+  "bucket_name": "cs4360-project-storage-ACCOUNT_ID",
+  "purpose": "Storage for recorded detection results and model artifacts",
+  "prefixes": [
+    "detection-results/",
+    "model-artifacts/",
+    "processed-data/"
+  ],
+  "access": {
+    "public_access": false,
+    "encryption": "SSE-S3",
+    "versioning": "Disabled for initial testing"
+  }
+}
