@@ -1,0 +1,35 @@
+﻿{
+  "family": "cs4360-anomaly-detection",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/<ECS_TASK_EXECUTION_ROLE>",
+  "runtimePlatform": {
+    "operatingSystemFamily": "LINUX",
+    "cpuArchitecture": "X86_64"
+  },
+  "containerDefinitions": [
+    {
+      "name": "cs4360-anomaly-detection",
+      "image": "<AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/cs4360-anomaly-detection:latest",
+      "essential": true,
+      "command": [
+        "python",
+        "-m",
+        "src.ingestion.run_replay",
+        "tests/fixtures/detection_results.json",
+        "--delay",
+        "0.5"
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cs4360-anomaly-detection",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

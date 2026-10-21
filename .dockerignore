@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+__pycache__
+.pytest_cache
+*.pyc
+*.pyo
+*.pyd
+
+data/raw
+data/processed
+
+notebooks
+.ipynb_checkpoints
