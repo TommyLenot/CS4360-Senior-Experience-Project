@@ -997,6 +997,90 @@ Completed Alert
 This establishes both directions of the detection-to-investigation interface without implementing the AI investigation logic inside the ingestion component.
 
 
+# Detection API
+
+## Overview
+
+The detection API is a FastAPI backend in `src/api/app.py`. It loads the trained models from `artifacts/` and serves anomaly scores to the frontend dashboard.
+
+The detection code it uses lives in `src/detection/`:
+
+- `columns.py` — the NSL-KDD column names and the mapping from attack label to attack family (`DoS`, `Probe`, `R2L`, `U2R`).
+- `preprocess.py` — loads the saved scaler and encoded column list, and applies the same one-hot encoding and scaling used during training.
+- `detectors.py` — loads every trained model from `artifacts/` behind a common `score` / `predict` interface.
+
+## Required Files
+
+The API needs two things before it can start:
+
+1. **Trained artifacts** in `artifacts/`. These are committed to the repository, so no extra step is needed.
+2. **The NSL-KDD test file** at `data/raw/KDDTest+.txt`. The dashboard endpoints replay this file. Because `data/raw/` is excluded through `.gitignore`, each team member must download it separately (see **NSL-KDD Dataset** above).
+
+If `KDDTest+.txt` is missing, the API fails at startup with a `FileNotFoundError`.
+
+## Install API Dependencies
+
+With `.venv` activated:
+
+```powershell
+pip install fastapi uvicorn torch
+```
+
+`torch` is required to load the autoencoder.
+
+## Run the API
+
+From the project root (not from `notebooks/` or `src/`):
+
+```powershell
+uvicorn src.api.app:app --reload
+```
+
+The API runs at `http://127.0.0.1:8000`. Interactive documentation is available at `http://127.0.0.1:8000/docs`.
+
+CORS is enabled for the Vite development server at `http://localhost:5173`.
+
+## Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Returns `{"status": "ok"}` |
+| GET | `/models` | Lists the loaded models and their thresholds |
+| POST | `/predict` | Scores raw NSL-KDD records with one or more models |
+| GET | `/summary?model=autoencoder` | Flagged count, precision, and recall on `KDDTest+.txt` |
+| GET | `/alerts?model=autoencoder&limit=50` | Flagged records, most suspicious first (`limit` 1–1000) |
+| GET | `/traffic?model=autoencoder&buckets=7` | Normal vs. anomalous counts per time window (`buckets` 1–100) |
+| GET | `/investigations` | Placeholder; returns `[]` until the AI investigation component exists |
+
+Available model keys: `autoencoder`, `mahalanobis`, `isolation_forest`, `lr_baseline_5`, `lr_selftrained_5`, `lr_baseline_1`, `lr_selftrained_1`.
+
+Example `/predict` request body:
+
+```json
+{
+  "records": [
+    {"duration": 0, "protocol_type": "tcp", "service": "http", "flag": "SF", "...": "..."}
+  ],
+  "models": ["autoencoder", "mahalanobis"]
+}
+```
+
+Each record must contain all 41 NSL-KDD feature columns. `label` is optional; when it is included, the response also returns the attack family. At most 10,000 records can be sent per request.
+
+## Current Results on KDDTest+
+
+| Model | Flagged | Precision | Recall |
+|---|---|---|---|
+| Autoencoder | 11,650 | 0.928 | 0.842 |
+| Mahalanobis | 11,588 | 0.938 | 0.847 |
+| Isolation Forest | 9,326 | 0.931 | 0.677 |
+| Logistic Regression, self-trained (5% labels) | 8,616 | 0.916 | 0.615 |
+
+## Mahalanobis Covariance Note
+
+The covariance matrix of normal NSL-KDD traffic has rank 73 out of 122 features. Inverting it with `np.linalg.pinv` produced an unstable matrix and negative distances. The notebooks now use a Ledoit-Wolf shrinkage estimate (`sklearn.covariance.LedoitWolf`), which raised the Mahalanobis F1 score on `KDDTest+` from 0.816 to 0.890.
+
+
 # Automated Testing
 
 ## Running Tests
@@ -1074,6 +1158,9 @@ The current verified result is:
 ```text
 CS4360-Senior-Experience-Project/
 |
++-- artifacts/
+|   +-- trained models, scaler, columns.json, thresholds.json
+|
 +-- data/
 |   |
 |   +-- processed/
@@ -1098,6 +1185,10 @@ CS4360-Senior-Experience-Project/
 |   |
 |   +-- agent/
 |   |
+|   +-- api/
+|   |   +-- __init__.py
+|   |   +-- app.py
+|   |
 |   +-- dashboard/
 |   |
 |   +-- data/
@@ -1110,6 +1201,10 @@ CS4360-Senior-Experience-Project/
 |   |   +-- prepare_cicids_data.py
 |   |
 |   +-- detection/
+|   |   +-- __init__.py
+|   |   +-- columns.py
+|   |   +-- detectors.py
+|   |   +-- preprocess.py
 |   |
 |   +-- ingestion/
 |       +-- __init__.py
