@@ -232,3 +232,40 @@ th {
 .selected-investigation h3 {
   color: #38bdf8;
 }
+
+/* Live API data */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+.controls label {
+  color: #94a3b8;
+}
+
+.controls select {
+  background: #1e293b;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.error-banner {
+  background: #7f1d1d;
+  color: #fecaca;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.loading-note,
+.empty-note,
+.model-metrics {
+  color: #94a3b8;
+}
+
+.model-metrics {
+  margin: -15px 0 25px;
+}
