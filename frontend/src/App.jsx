@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   LineChart,
   Line,
@@ -12,44 +12,82 @@ import {
 } from 'recharts'
 import './App.css'
 
-// Sample security alerts
-const sampleAlerts = [
-  { id: 'ALT-001', type: 'DDoS', score: 0.92, status: 'pending' },
-  { id: 'ALT-002', type: 'PortScan', score: 0.76, status: 'completed' },
-  { id: 'ALT-003', type: 'Brute Force', score: 0.84, status: 'pending' },
-]
+// Detection API (src/api/app.py); override with VITE_API_URL in frontend/.env
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
+const ALERT_LIMIT = 50
 
-// Sample AI investigation results
-const sampleInvestigations = [
-  {
-    alert_id: 'ALT-002',
-    verdict: 'suspicious',
-    confidence_score: 0.78,
-    explanation:
-      'Multiple connection attempts suggest possible port scanning.',
-  },
-]
-
-// Sample network traffic data
-const networkData = [
-  { time: '09:00', normal: 120, anomalies: 5 },
-  { time: '10:00', normal: 180, anomalies: 12 },
-  { time: '11:00', normal: 150, anomalies: 8 },
-  { time: '12:00', normal: 220, anomalies: 25 },
-  { time: '13:00', normal: 190, anomalies: 18 },
-  { time: '14:00', normal: 250, anomalies: 35 },
-  { time: '15:00', normal: 210, anomalies: 15 },
-]
+async function getJson(path, signal) {
+  const res = await fetch(`${API_URL}${path}`, { signal })
+  if (!res.ok) {
+    throw new Error(`${path} returned ${res.status}`)
+  }
+  return res.json()
+}
 
 function App() {
-  const [alerts] = useState(sampleAlerts)
+  const [models, setModels] = useState([])
+  const [model, setModel] = useState('autoencoder')
+  const [summary, setSummary] = useState(null)
+  const [alerts, setAlerts] = useState([])
+  const [networkData, setNetworkData] = useState([])
+  const [investigations, setInvestigations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [selectedAlert, setSelectedAlert] = useState(null)
 
+  // Model list for the picker
+  useEffect(() => {
+    const controller = new AbortController()
+    getJson('/models', controller.signal)
+      .then(setModels)
+      .catch(err => {
+        if (err.name !== 'AbortError') setError(err.message)
+      })
+    return () => controller.abort()
+  }, [])
+
+  // Dashboard data for the selected model
+  useEffect(() => {
+    const controller = new AbortController()
+    const q = `model=${encodeURIComponent(model)}`
+
+    Promise.all([
+      getJson(`/summary?${q}`, controller.signal),
+      getJson(`/alerts?${q}&limit=${ALERT_LIMIT}`, controller.signal),
+      getJson(`/traffic?${q}`, controller.signal),
+      getJson('/investigations', controller.signal),
+    ])
+      .then(([summaryData, alertData, trafficData, investigationData]) => {
+        setSummary(summaryData)
+        setAlerts(alertData)
+        setNetworkData(trafficData)
+        setInvestigations(investigationData)
+        setLoading(false)
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return
+        setError(err.message)
+        setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [model])
+
+  function changeModel(key) {
+    setModel(key)
+    setLoading(true)
+    setError(null)
+    setSelectedAlert(null)
+  }
+
   const selectedInvestigation = selectedAlert
-    ? sampleInvestigations.find(
+    ? investigations.find(
         result => result.alert_id === selectedAlert.id
       )
     : null
+
+  const modelName =
+    models.find(m => m.key === model)?.name ?? model
 
   return (
     <div className="app">
@@ -71,32 +109,71 @@ function App() {
         <h1>Security Dashboard</h1>
         <p>Network Anomaly Detection & Threat Analysis</p>
 
+        {/* Model picker */}
+        <div className="controls">
+          <label htmlFor="model-select">Detection model</label>
+          <select
+            id="model-select"
+            value={model}
+            onChange={event => changeModel(event.target.value)}
+            disabled={models.length === 0}
+          >
+            {models.length === 0 && (
+              <option value={model}>{model}</option>
+            )}
+            {models.map(m => (
+              <option key={m.key} value={m.key}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {error && (
+          <p className="error-banner" role="alert">
+            Could not reach the detection API at {API_URL} ({error}).
+            Start it from the project root with{' '}
+            <code>uvicorn src.api.app:app --reload</code>.
+          </p>
+        )}
+
+        {loading && !error && (
+          <p className="loading-note">Loading {modelName} results…</p>
+        )}
+
         {/* Statistics */}
         <div className="stats">
           <div className="stat-card">
             <h3>Total Alerts</h3>
-            <h2>{alerts.length}</h2>
+            <h2>{summary ? summary.flagged.toLocaleString() : '–'}</h2>
           </div>
 
           <div className="stat-card">
             <h3>Pending Investigation</h3>
-            <h2>
-              {alerts.filter(a => a.status === 'pending').length}
-            </h2>
+            <h2>{summary ? summary.pending.toLocaleString() : '–'}</h2>
           </div>
 
           <div className="stat-card">
             <h3>Completed</h3>
-            <h2>
-              {alerts.filter(a => a.status === 'completed').length}
-            </h2>
+            <h2>{summary ? summary.completed.toLocaleString() : '–'}</h2>
           </div>
         </div>
+
+        {summary && (
+          <p className="model-metrics">
+            {modelName} on {summary.rows.toLocaleString()} test records —
+            precision {(summary.precision * 100).toFixed(1)}%, recall{' '}
+            {(summary.recall * 100).toFixed(1)}%
+          </p>
+        )}
 
         {/* Network traffic chart */}
         <section id="traffic" className="traffic-section">
           <h2>Network Traffic Overview</h2>
-          <p>Normal vs. anomalous records (sample data)</p>
+          <p>
+            Normal vs. flagged records. The NSL-KDD test set has no
+            timestamps, so each window is an equal slice of the file.
+          </p>
 
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={300}>
@@ -142,19 +219,29 @@ function App() {
         {/* Security alerts */}
         <section id="alerts">
           <h2>Recent Security Alerts</h2>
-          <p>Click an alert to view its details.</p>
+          <p>
+            Top {ALERT_LIMIT} most suspicious records. Score is how many
+            times over the model threshold the record is. Click an alert
+            to view its details.
+          </p>
 
           <table>
             <thead>
               <tr>
                 <th>Alert ID</th>
                 <th>Attack Type</th>
+                <th>True Label</th>
                 <th>Anomaly Score</th>
                 <th>Status</th>
               </tr>
             </thead>
 
             <tbody>
+              {alerts.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={5}>No alerts.</td>
+                </tr>
+              )}
               {alerts.map(alert => (
                 <tr
                   key={alert.id}
@@ -174,7 +261,8 @@ function App() {
                 >
                   <td>{alert.id}</td>
                   <td>{alert.type}</td>
-                  <td>{alert.score.toFixed(2)}</td>
+                  <td>{alert.true_label}</td>
+                  <td>{alert.score.toFixed(2)}×</td>
                   <td>
                     <span className={`status ${alert.status}`}>
                       {alert.status}
@@ -209,8 +297,12 @@ function App() {
             </p>
 
             <p>
+              <strong>True Label:</strong> {selectedAlert.true_label}
+            </p>
+
+            <p>
               <strong>Anomaly Score:</strong>{' '}
-              {selectedAlert.score.toFixed(2)}
+              {selectedAlert.score.toFixed(2)}× threshold
             </p>
 
             <p>
@@ -253,7 +345,14 @@ function App() {
         >
           <h2>AI Investigation Results</h2>
 
-          {sampleInvestigations.map(result => (
+          {investigations.length === 0 && (
+            <p className="empty-note">
+              No investigations yet. Results will appear here once the
+              AI investigation component is connected.
+            </p>
+          )}
+
+          {investigations.map(result => (
             <div
               className="investigation-card"
               key={result.alert_id}
@@ -278,7 +377,8 @@ function App() {
         </section>
 
         <p className="demo-note">
-          Demo data — backend not connected yet.
+          Live data from the detection API ({API_URL}), replaying the
+          NSL-KDD test set.
         </p>
       </main>
     </div>
