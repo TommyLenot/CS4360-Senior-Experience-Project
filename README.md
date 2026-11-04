@@ -1038,7 +1038,66 @@ uvicorn src.api.app:app --reload
 
 The API runs at `http://127.0.0.1:8000`. Interactive documentation is available at `http://127.0.0.1:8000/docs`.
 
-CORS is enabled for the Vite development server at `http://localhost:5173`.
+Opening `http://127.0.0.1:8000` by itself shows `{"detail":"Not Found"}`. This is expected, because the API has no page at `/`. Use `/docs` or `/health` instead.
+
+CORS is enabled for the Vite development server on any local port (`http://localhost:<port>` or `http://127.0.0.1:<port>`).
+
+## Run the API and Dashboard Together
+
+The dashboard in `frontend/` only displays data. All of its numbers come from the API, so **both must be running at the same time**, each in its own terminal.
+
+Install the frontend dependencies once:
+
+```powershell
+cd frontend
+npm install
+```
+
+**Terminal 1 — API** (start this first, from the project root):
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+uvicorn src.api.app:app --reload
+```
+
+macOS / Linux:
+
+```bash
+source .venv/bin/activate
+uvicorn src.api.app:app --reload
+```
+
+Wait for `Application startup complete` and leave this terminal open.
+
+**Terminal 2 — Dashboard** (open a second terminal; in VS Code press ``Ctrl + Shift + ` `` or click **+** in the terminal panel):
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Then open `http://localhost:5173` in a browser. Stop either server with `Ctrl+C` in its terminal.
+
+On macOS / Linux, both can also be started from one terminal at the project root; `Ctrl+C` stops both:
+
+```bash
+source .venv/bin/activate
+uvicorn src.api.app:app --reload & (cd frontend && npm run dev); kill %1
+```
+
+### Troubleshooting
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Dashboard shows "Could not reach the detection API" | The API is not running (its terminal was closed, `Ctrl+C` was pressed, or the computer restarted) | Start the API from the project root with `uvicorn src.api.app:app --reload`, then refresh the page |
+| `npm error enoent Could not read package.json` | `npm run dev` was run from the project root | Run it inside `frontend/` |
+| `address already in use` when starting the API | An API is already running on port 8000 | Use the running one, or stop it first |
+| Browser cannot connect to `localhost:5173` | The dashboard is not running | Run `npm run dev` inside `frontend/` |
+| `FileNotFoundError` for `KDDTest+.txt` at API startup | The NSL-KDD test file has not been downloaded | Place it at `data/raw/KDDTest+.txt` (see **NSL-KDD Dataset**) |
+
+To check whether the API is up, open `http://127.0.0.1:8000/health`. It should show `{"status":"ok"}`.
 
 ## Endpoints
 
