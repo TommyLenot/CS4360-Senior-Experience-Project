@@ -1,0 +1,6 @@
+{
+  "autoencoder": 0.059052176773548126,
+  "mahalanobis": 156.74319789418107,
+  "isolation_forest": 0.4835411207880887,
+  "logreg": 0.5
+}

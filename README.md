@@ -1,3 +1,4 @@
+
 # CS4360 Senior Experience Project
 
 ## Network Anomaly Detection and Automated Threat Analysis
@@ -73,7 +74,6 @@ This installs the packages currently used by the project, including tools for:
 - Streamlit
 - Automated testing with pytest
 
-
 # NSL-KDD Data Pipeline
 
 ## NSL-KDD Dataset
@@ -124,7 +124,6 @@ Raw columns:            43
 
 The 43 raw columns consist of the network features along with the attack label and difficulty field.
 
-
 ## Prepare the NSL-KDD Dataset
 
 The project contains a reusable NSL-KDD data preparation pipeline. This allows team members to generate model-ready data without running preprocessing manually through the Jupyter notebook.
@@ -164,7 +163,6 @@ Processed test shape:      (22544, 121)
 
 The preprocessing pipeline is fit using the training data. The fitted preprocessing transformations are then applied to the test data so that the training and test datasets use the same feature space.
 
-
 ## NSL-KDD Processed Data Validation
 
 Before the processed data is saved, the pipeline verifies that:
@@ -181,7 +179,6 @@ Before the processed data is saved, the pipeline verifies that:
 The preprocessing pipeline also automatically removes features with zero variance.
 
 During development, `num_outbound_cmds` was identified as a zero-variance NSL-KDD feature. The pipeline removes zero-variance features automatically rather than hard-coding a specific column.
-
 
 ## NSL-KDD Generated Processed Files
 
@@ -206,7 +203,6 @@ data/processed/
 These files are generated artifacts and do not need to be manually edited.
 
 The processed NSL-KDD feature matrices currently contain 121 model-ready features.
-
 
 ## Loading NSL-KDD Processed Data
 
@@ -245,7 +241,6 @@ The processed data has been compatibility-tested with:
 
 These compatibility tests verify that the preprocessing/data pipeline can successfully provide input to the models. They do not replace the full model training, tuning, or statistical evaluation performed by the detection component.
 
-
 ## Mahalanobis Distance Data Note
 
 The Week 3 detection work includes Mahalanobis distance.
@@ -255,7 +250,6 @@ The processed NSL-KDD data is numeric, finite, and contains no zero-variance fea
 This means some processed dimensions are linearly dependent. The data pipeline does not automatically remove these additional dimensions because doing so would make a modeling decision on behalf of the detection component.
 
 The Mahalanobis implementation should therefore account for the possibility of a singular or near-singular covariance matrix.
-
 
 ## Running the NSL-KDD Jupyter Notebook
 
@@ -281,7 +275,6 @@ The notebook currently contains:
 - Feature distributions
 - Correlation analysis
 - Data preprocessing
-
 
 # CICIDS2017 Data Pipeline
 
@@ -321,7 +314,6 @@ Unlike NSL-KDD, these files already contain numeric model features and therefore
 
 The available features include `Destination Port` and network-flow statistics. The MachineLearningCSV files used by this project do not contain source or destination IP address columns.
 
-
 ## CICIDS2017 Loading and Cleaning
 
 CICIDS2017 loading is handled by:
@@ -349,7 +341,6 @@ Total cleaned records: 2,827,876
 During cleaning, approximately 0.10% of the original records were removed because they contained invalid flow-rate values.
 
 Duplicate network-flow records are not automatically removed. Repeated network flows may represent legitimate repeated observations, and removing them would change the dataset distribution. Duplicate handling is therefore not performed automatically by the data-loading pipeline.
-
 
 ## CICIDS2017 Label Distribution
 
@@ -380,7 +371,6 @@ The attack categories include:
 - Heartbleed
 
 Some attack categories contain very few records. The data preparation process therefore preserves the original attack labels in addition to producing binary benign/attack labels.
-
 
 ## CICIDS2017 Diagnostic Scripts
 
@@ -453,7 +443,6 @@ python check_cicids_labels.py
 
 This script calculates the cleaned label distribution across all eight CICIDS2017 files and reports both the original attack categories and the combined benign/attack distribution.
 
-
 ## Prepare the CICIDS2017 Dataset
 
 The reusable CICIDS2017 preparation script is:
@@ -490,7 +479,6 @@ The preparation process:
 16. Converts the processed model arrays to `float32`.
 17. Validates the final model-ready data.
 18. Saves the processed data and fitted preprocessor.
-
 
 ## CICIDS2017 Train/Test Handoff
 
@@ -529,7 +517,6 @@ Test:     2
 
 The CICIDS2017 preparation pipeline creates non-overlapping training and test partitions within each source file.
 
-
 ## CICIDS2017 Processed Data Validation
 
 Before saving the final model-ready data, the pipeline verifies that:
@@ -554,7 +541,6 @@ Test:     (565580, 70) float32
 Both arrays have been verified to contain no NaN or infinite values.
 
 The use of `float32` reduces the memory required by the processed feature matrices while retaining the same record and feature counts.
-
 
 ## CICIDS2017 Generated Processed Files
 
@@ -591,7 +577,6 @@ attack_labels_train / attack_labels_test
 ```
 
 This allows the detection component to perform binary anomaly evaluation while still retaining the original attack category for additional analysis.
-
 
 ## Loading CICIDS2017 Processed Data
 
@@ -651,7 +636,6 @@ Training finite: True
 Test finite:     True
 ```
 
-
 # Alert Ingestion and Investigation Handoff Pipeline
 
 ## Week 5 Alert Handoff
@@ -703,7 +687,6 @@ Completed Alert
 The detection component, ingestion interface, and AI investigation component remain separate.
 
 The ingestion pipeline does not decide whether an alert is malicious, generate AI confidence scores, or create investigation explanations. It provides the data structures and handoff interfaces needed for those components to communicate.
-
 
 ## Alert Structure
 
@@ -767,7 +750,6 @@ failed
 
 These statuses allow later components to distinguish alerts waiting for investigation from successfully completed or failed investigations.
 
-
 ## Alert Queue
 
 Alert storage and state tracking are handled by:
@@ -812,7 +794,6 @@ _results
 
 This queue is intentionally lightweight and currently exists in memory. It establishes the interface needed by the project without introducing a production message broker or claiming genuine real-time processing.
 
-
 ## Controlled Alert Replay
 
 Controlled alert replay is handled by:
@@ -848,8 +829,6 @@ This provides a controlled dataset-replay mechanism for integration and testing.
 
 The replay component does not run detection models or the AI investigation agent. Those responsibilities remain separated from the ingestion interface.
 
-
-
 ## Pending Alert Handoff
 
 Pending-alert handoff is handled by:
@@ -874,7 +853,6 @@ Alerts with a status of `completed` or `failed` are skipped and are not handed t
 The handoff currently retrieves pending alerts using the order in which they were added to the in-memory queue.
 
 This component does not perform the investigation itself. Its responsibility is only to provide the pending alert to the component responsible for AI-assisted investigation.
-
 
 ## Investigation Result Structure
 
@@ -946,7 +924,6 @@ An example investigation result is:
 }
 ```
 
-
 ## Investigation Result Return Path
 
 After the investigation component finishes analyzing an alert, its standardized `InvestigationResult` can be returned to the `AlertQueue`.
@@ -996,6 +973,147 @@ Completed Alert
 
 This establishes both directions of the detection-to-investigation interface without implementing the AI investigation logic inside the ingestion component.
 
+# Detection API
+
+## Overview
+
+The detection API is a FastAPI backend in `src/api/app.py`. It loads the trained models from `artifacts/` and serves anomaly scores to the frontend dashboard.
+
+The detection code it uses lives in `src/detection/`:
+
+- `columns.py` — the NSL-KDD column names and the mapping from attack label to attack family (`DoS`, `Probe`, `R2L`, `U2R`).
+- `preprocess.py` — loads the saved scaler and encoded column list, and applies the same one-hot encoding and scaling used during training.
+- `detectors.py` — loads every trained model from `artifacts/` behind a common `score` / `predict` interface.
+
+## Required Files
+
+The API needs two things before it can start:
+
+1. **Trained artifacts** in `artifacts/`. These are committed to the repository, so no extra step is needed.
+2. **The NSL-KDD test file** at `data/raw/KDDTest+.txt`. The dashboard endpoints replay this file. Because `data/raw/` is excluded through `.gitignore`, each team member must download it separately (see **NSL-KDD Dataset** above).
+
+If `KDDTest+.txt` is missing, the API fails at startup with a `FileNotFoundError`.
+
+## Install API Dependencies
+
+With `.venv` activated:
+
+```powershell
+pip install fastapi uvicorn torch
+```
+
+`torch` is required to load the autoencoder.
+
+## Run the API
+
+From the project root (not from `notebooks/` or `src/`):
+
+```powershell
+uvicorn src.api.app:app --reload
+```
+
+The API runs at `http://127.0.0.1:8000`. Interactive documentation is available at `http://127.0.0.1:8000/docs`.
+
+Opening `http://127.0.0.1:8000` by itself shows `{"detail":"Not Found"}`. This is expected, because the API has no page at `/`. Use `/docs` or `/health` instead.
+
+CORS is enabled for the Vite development server on any local port (`http://localhost:<port>` or `http://127.0.0.1:<port>`).
+
+## Run the API and Dashboard Together
+
+The dashboard in `frontend/` only displays data. All of its numbers come from the API, so **both must be running at the same time**, each in its own terminal.
+
+Install the frontend dependencies once:
+
+```powershell
+cd frontend
+npm install
+```
+
+**Terminal 1 — API** (start this first, from the project root):
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+uvicorn src.api.app:app --reload
+```
+
+macOS / Linux:
+
+```bash
+source .venv/bin/activate
+uvicorn src.api.app:app --reload
+```
+
+Wait for `Application startup complete` and leave this terminal open.
+
+**Terminal 2 — Dashboard** (open a second terminal; in VS Code press ``Ctrl + Shift + ` `` or click **+** in the terminal panel):
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Then open `http://localhost:5173` in a browser. Stop either server with `Ctrl+C` in its terminal.
+
+On macOS / Linux, both can also be started from one terminal at the project root; `Ctrl+C` stops both:
+
+```bash
+source .venv/bin/activate
+uvicorn src.api.app:app --reload & (cd frontend && npm run dev); kill %1
+```
+
+### Troubleshooting
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Dashboard shows "Could not reach the detection API" | The API is not running (its terminal was closed, `Ctrl+C` was pressed, or the computer restarted) | Start the API from the project root with `uvicorn src.api.app:app --reload`, then refresh the page |
+| `npm error enoent Could not read package.json` | `npm run dev` was run from the project root | Run it inside `frontend/` |
+| `address already in use` when starting the API | An API is already running on port 8000 | Use the running one, or stop it first |
+| Browser cannot connect to `localhost:5173` | The dashboard is not running | Run `npm run dev` inside `frontend/` |
+| `FileNotFoundError` for `KDDTest+.txt` at API startup | The NSL-KDD test file has not been downloaded | Place it at `data/raw/KDDTest+.txt` (see **NSL-KDD Dataset**) |
+
+To check whether the API is up, open `http://127.0.0.1:8000/health`. It should show `{"status":"ok"}`.
+
+## Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Returns `{"status": "ok"}` |
+| GET | `/models` | Lists the loaded models and their thresholds |
+| POST | `/predict` | Scores raw NSL-KDD records with one or more models |
+| GET | `/summary?model=autoencoder` | Flagged count, precision, and recall on `KDDTest+.txt` |
+| GET | `/alerts?model=autoencoder&limit=50` | Flagged records, most suspicious first (`limit` 1–1000) |
+| GET | `/traffic?model=autoencoder&buckets=7` | Normal vs. anomalous counts per time window (`buckets` 1–100) |
+| GET | `/investigations` | Placeholder; returns `[]` until the AI investigation component exists |
+
+Available model keys: `autoencoder`, `mahalanobis`, `isolation_forest`, `lr_baseline_5`, `lr_selftrained_5`, `lr_baseline_1`, `lr_selftrained_1`.
+
+Example `/predict` request body:
+
+```json
+{
+  "records": [
+    {"duration": 0, "protocol_type": "tcp", "service": "http", "flag": "SF", "...": "..."}
+  ],
+  "models": ["autoencoder", "mahalanobis"]
+}
+```
+
+Each record must contain all 41 NSL-KDD feature columns. `label` is optional; when it is included, the response also returns the attack family. At most 10,000 records can be sent per request.
+
+## Current Results on KDDTest+
+
+| Model | Flagged | Precision | Recall |
+|---|---|---|---|
+| Autoencoder | 11,650 | 0.928 | 0.842 |
+| Mahalanobis | 11,588 | 0.938 | 0.847 |
+| Isolation Forest | 9,326 | 0.931 | 0.677 |
+| Logistic Regression, self-trained (5% labels) | 8,616 | 0.916 | 0.615 |
+
+## Mahalanobis Covariance Note
+
+The covariance matrix of normal NSL-KDD traffic has rank 73 out of 122 features. Inverting it with `np.linalg.pinv` produced an unstable matrix and negative distances. The notebooks now use a Ledoit-Wolf shrinkage estimate (`sklearn.covariance.LedoitWolf`), which raised the Mahalanobis F1 score on `KDDTest+` from 0.816 to 0.890.
 
 # Automated Testing
 
@@ -1068,11 +1186,13 @@ The current verified result is:
 89 passed in 3.49s
 ```
 
-
 # Current Project Structure
 
 ```text
 CS4360-Senior-Experience-Project/
+|
++-- artifacts/
+|   +-- trained models, scaler, columns.json, thresholds.json
 |
 +-- data/
 |   |
@@ -1098,6 +1218,10 @@ CS4360-Senior-Experience-Project/
 |   |
 |   +-- agent/
 |   |
+|   +-- api/
+|   |   +-- __init__.py
+|   |   +-- app.py
+|   |
 |   +-- dashboard/
 |   |
 |   +-- data/
@@ -1110,6 +1234,10 @@ CS4360-Senior-Experience-Project/
 |   |   +-- prepare_cicids_data.py
 |   |
 |   +-- detection/
+|   |   +-- __init__.py
+|   |   +-- columns.py
+|   |   +-- detectors.py
+|   |   +-- preprocess.py
 |   |
 |   +-- ingestion/
 |       +-- __init__.py
@@ -1141,7 +1269,6 @@ CS4360-Senior-Experience-Project/
 +-- requirements.txt
 ```
 
-
 # Current Progress
 
 ## Week 1
@@ -1151,7 +1278,6 @@ CS4360-Senior-Experience-Project/
 - Exploratory data analysis
 - Dataset distribution and feature analysis
 
-
 ## Week 2
 
 - Reusable preprocessing pipeline
@@ -1160,7 +1286,6 @@ CS4360-Senior-Experience-Project/
 - Numerical feature scaling
 - Train/test preprocessing
 - Automated preprocessing tests
-
 
 ## Week 3 - Data/DevOps
 
@@ -1179,7 +1304,6 @@ CS4360-Senior-Experience-Project/
 - Expanded the automated test suite to 15 passing tests.
 
 The Week 3 Data/DevOps work prepares a reusable model-data interface for the detection work while leaving model implementation, tuning, and statistical comparison to the detection component.
-
 
 ## Week 4 - Data/DevOps
 
@@ -1206,7 +1330,6 @@ The Week 3 Data/DevOps work prepares a reusable model-data interface for the det
 - Expanded the complete automated test suite from 15 to 21 passing tests.
 
 The Week 4 Data/DevOps work provides a reusable CICIDS2017 data pipeline and model-data handoff. Detection-model implementation, model tuning, threshold selection, and statistical performance evaluation remain responsibilities of the detection component.
-
 
 ## Week 5 - Data/DevOps
 
@@ -1250,7 +1373,6 @@ The Week 5 Data/DevOps work establishes a controlled two-way interface between a
 The current ingestion pipeline supports dataset replay and batch-style integration testing rather than genuine real-time network traffic processing.
 
 The Data/DevOps components do not generate the AI verdict, calculate the AI investigation confidence score, or produce the investigation explanation. Those responsibilities remain with the AI investigation component.
-
 
 # Important Notes
 
