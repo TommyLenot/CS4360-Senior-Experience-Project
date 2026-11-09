@@ -1,3 +1,4 @@
+
 # CS4360 Senior Experience Project
 
 ## Network Anomaly Detection and Automated Threat Analysis
@@ -73,7 +74,6 @@ This installs the packages currently used by the project, including tools for:
 - Streamlit
 - Automated testing with pytest
 
-
 # NSL-KDD Data Pipeline
 
 ## NSL-KDD Dataset
@@ -124,7 +124,6 @@ Raw columns:            43
 
 The 43 raw columns consist of the network features along with the attack label and difficulty field.
 
-
 ## Prepare the NSL-KDD Dataset
 
 The project contains a reusable NSL-KDD data preparation pipeline. This allows team members to generate model-ready data without running preprocessing manually through the Jupyter notebook.
@@ -164,7 +163,6 @@ Processed test shape:      (22544, 121)
 
 The preprocessing pipeline is fit using the training data. The fitted preprocessing transformations are then applied to the test data so that the training and test datasets use the same feature space.
 
-
 ## NSL-KDD Processed Data Validation
 
 Before the processed data is saved, the pipeline verifies that:
@@ -181,7 +179,6 @@ Before the processed data is saved, the pipeline verifies that:
 The preprocessing pipeline also automatically removes features with zero variance.
 
 During development, `num_outbound_cmds` was identified as a zero-variance NSL-KDD feature. The pipeline removes zero-variance features automatically rather than hard-coding a specific column.
-
 
 ## NSL-KDD Generated Processed Files
 
@@ -206,7 +203,6 @@ data/processed/
 These files are generated artifacts and do not need to be manually edited.
 
 The processed NSL-KDD feature matrices currently contain 121 model-ready features.
-
 
 ## Loading NSL-KDD Processed Data
 
@@ -245,7 +241,6 @@ The processed data has been compatibility-tested with:
 
 These compatibility tests verify that the preprocessing/data pipeline can successfully provide input to the models. They do not replace the full model training, tuning, or statistical evaluation performed by the detection component.
 
-
 ## Mahalanobis Distance Data Note
 
 The Week 3 detection work includes Mahalanobis distance.
@@ -255,7 +250,6 @@ The processed NSL-KDD data is numeric, finite, and contains no zero-variance fea
 This means some processed dimensions are linearly dependent. The data pipeline does not automatically remove these additional dimensions because doing so would make a modeling decision on behalf of the detection component.
 
 The Mahalanobis implementation should therefore account for the possibility of a singular or near-singular covariance matrix.
-
 
 ## Running the NSL-KDD Jupyter Notebook
 
@@ -281,7 +275,6 @@ The notebook currently contains:
 - Feature distributions
 - Correlation analysis
 - Data preprocessing
-
 
 # CICIDS2017 Data Pipeline
 
@@ -321,7 +314,6 @@ Unlike NSL-KDD, these files already contain numeric model features and therefore
 
 The available features include `Destination Port` and network-flow statistics. The MachineLearningCSV files used by this project do not contain source or destination IP address columns.
 
-
 ## CICIDS2017 Loading and Cleaning
 
 CICIDS2017 loading is handled by:
@@ -349,7 +341,6 @@ Total cleaned records: 2,827,876
 During cleaning, approximately 0.10% of the original records were removed because they contained invalid flow-rate values.
 
 Duplicate network-flow records are not automatically removed. Repeated network flows may represent legitimate repeated observations, and removing them would change the dataset distribution. Duplicate handling is therefore not performed automatically by the data-loading pipeline.
-
 
 ## CICIDS2017 Label Distribution
 
@@ -380,7 +371,6 @@ The attack categories include:
 - Heartbleed
 
 Some attack categories contain very few records. The data preparation process therefore preserves the original attack labels in addition to producing binary benign/attack labels.
-
 
 ## CICIDS2017 Diagnostic Scripts
 
@@ -453,7 +443,6 @@ python check_cicids_labels.py
 
 This script calculates the cleaned label distribution across all eight CICIDS2017 files and reports both the original attack categories and the combined benign/attack distribution.
 
-
 ## Prepare the CICIDS2017 Dataset
 
 The reusable CICIDS2017 preparation script is:
@@ -490,7 +479,6 @@ The preparation process:
 16. Converts the processed model arrays to `float32`.
 17. Validates the final model-ready data.
 18. Saves the processed data and fitted preprocessor.
-
 
 ## CICIDS2017 Train/Test Handoff
 
@@ -529,7 +517,6 @@ Test:     2
 
 The CICIDS2017 preparation pipeline creates non-overlapping training and test partitions within each source file.
 
-
 ## CICIDS2017 Processed Data Validation
 
 Before saving the final model-ready data, the pipeline verifies that:
@@ -554,7 +541,6 @@ Test:     (565580, 70) float32
 Both arrays have been verified to contain no NaN or infinite values.
 
 The use of `float32` reduces the memory required by the processed feature matrices while retaining the same record and feature counts.
-
 
 ## CICIDS2017 Generated Processed Files
 
@@ -591,7 +577,6 @@ attack_labels_train / attack_labels_test
 ```
 
 This allows the detection component to perform binary anomaly evaluation while still retaining the original attack category for additional analysis.
-
 
 ## Loading CICIDS2017 Processed Data
 
@@ -651,7 +636,6 @@ Training finite: True
 Test finite:     True
 ```
 
-
 # Alert Ingestion and Investigation Handoff Pipeline
 
 ## Week 5 Alert Handoff
@@ -703,7 +687,6 @@ Completed Alert
 The detection component, ingestion interface, and AI investigation component remain separate.
 
 The ingestion pipeline does not decide whether an alert is malicious, generate AI confidence scores, or create investigation explanations. It provides the data structures and handoff interfaces needed for those components to communicate.
-
 
 ## Alert Structure
 
@@ -767,7 +750,6 @@ failed
 
 These statuses allow later components to distinguish alerts waiting for investigation from successfully completed or failed investigations.
 
-
 ## Alert Queue
 
 Alert storage and state tracking are handled by:
@@ -812,7 +794,6 @@ _results
 
 This queue is intentionally lightweight and currently exists in memory. It establishes the interface needed by the project without introducing a production message broker or claiming genuine real-time processing.
 
-
 ## Controlled Alert Replay
 
 Controlled alert replay is handled by:
@@ -848,8 +829,6 @@ This provides a controlled dataset-replay mechanism for integration and testing.
 
 The replay component does not run detection models or the AI investigation agent. Those responsibilities remain separated from the ingestion interface.
 
-
-
 ## Pending Alert Handoff
 
 Pending-alert handoff is handled by:
@@ -874,7 +853,6 @@ Alerts with a status of `completed` or `failed` are skipped and are not handed t
 The handoff currently retrieves pending alerts using the order in which they were added to the in-memory queue.
 
 This component does not perform the investigation itself. Its responsibility is only to provide the pending alert to the component responsible for AI-assisted investigation.
-
 
 ## Investigation Result Structure
 
@@ -946,7 +924,6 @@ An example investigation result is:
 }
 ```
 
-
 ## Investigation Result Return Path
 
 After the investigation component finishes analyzing an alert, its standardized `InvestigationResult` can be returned to the `AlertQueue`.
@@ -995,7 +972,6 @@ Completed Alert
 ```
 
 This establishes both directions of the detection-to-investigation interface without implementing the AI investigation logic inside the ingestion component.
-
 
 # Detection API
 
@@ -1139,7 +1115,6 @@ Each record must contain all 41 NSL-KDD feature columns. `label` is optional; wh
 
 The covariance matrix of normal NSL-KDD traffic has rank 73 out of 122 features. Inverting it with `np.linalg.pinv` produced an unstable matrix and negative distances. The notebooks now use a Ledoit-Wolf shrinkage estimate (`sklearn.covariance.LedoitWolf`), which raised the Mahalanobis F1 score on `KDDTest+` from 0.816 to 0.890.
 
-
 # Automated Testing
 
 ## Running Tests
@@ -1210,7 +1185,6 @@ The current verified result is:
 ```text
 89 passed in 3.49s
 ```
-
 
 # Current Project Structure
 
@@ -1295,7 +1269,6 @@ CS4360-Senior-Experience-Project/
 +-- requirements.txt
 ```
 
-
 # Current Progress
 
 ## Week 1
@@ -1305,7 +1278,6 @@ CS4360-Senior-Experience-Project/
 - Exploratory data analysis
 - Dataset distribution and feature analysis
 
-
 ## Week 2
 
 - Reusable preprocessing pipeline
@@ -1314,7 +1286,6 @@ CS4360-Senior-Experience-Project/
 - Numerical feature scaling
 - Train/test preprocessing
 - Automated preprocessing tests
-
 
 ## Week 3 - Data/DevOps
 
@@ -1333,7 +1304,6 @@ CS4360-Senior-Experience-Project/
 - Expanded the automated test suite to 15 passing tests.
 
 The Week 3 Data/DevOps work prepares a reusable model-data interface for the detection work while leaving model implementation, tuning, and statistical comparison to the detection component.
-
 
 ## Week 4 - Data/DevOps
 
@@ -1360,7 +1330,6 @@ The Week 3 Data/DevOps work prepares a reusable model-data interface for the det
 - Expanded the complete automated test suite from 15 to 21 passing tests.
 
 The Week 4 Data/DevOps work provides a reusable CICIDS2017 data pipeline and model-data handoff. Detection-model implementation, model tuning, threshold selection, and statistical performance evaluation remain responsibilities of the detection component.
-
 
 ## Week 5 - Data/DevOps
 
@@ -1404,7 +1373,6 @@ The Week 5 Data/DevOps work establishes a controlled two-way interface between a
 The current ingestion pipeline supports dataset replay and batch-style integration testing rather than genuine real-time network traffic processing.
 
 The Data/DevOps components do not generate the AI verdict, calculate the AI investigation confidence score, or produce the investigation explanation. Those responsibilities remain with the AI investigation component.
-
 
 # Important Notes
 

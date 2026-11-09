@@ -18,9 +18,11 @@ const ALERT_LIMIT = 50
 
 async function getJson(path, signal) {
   const res = await fetch(`${API_URL}${path}`, { signal })
+
   if (!res.ok) {
     throw new Error(`${path} returned ${res.status}`)
   }
+
   return res.json()
 }
 
@@ -35,18 +37,22 @@ function App() {
   const [error, setError] = useState(null)
   const [selectedAlert, setSelectedAlert] = useState(null)
 
-  // Model list for the picker
+  // Load available detection models
   useEffect(() => {
     const controller = new AbortController()
+
     getJson('/models', controller.signal)
       .then(setModels)
       .catch(err => {
-        if (err.name !== 'AbortError') setError(err.message)
+        if (err.name !== 'AbortError') {
+          setError(err.message)
+        }
       })
+
     return () => controller.abort()
   }, [])
 
-  // Dashboard data for the selected model
+  // Load dashboard data for the selected model
   useEffect(() => {
     const controller = new AbortController()
     const q = `model=${encodeURIComponent(model)}`
@@ -66,6 +72,7 @@ function App() {
       })
       .catch(err => {
         if (err.name === 'AbortError') return
+
         setError(err.message)
         setLoading(false)
       })
@@ -109,9 +116,10 @@ function App() {
         <h1>Security Dashboard</h1>
         <p>Network Anomaly Detection & Threat Analysis</p>
 
-        {/* Model picker */}
+        {/* Detection model selector */}
         <div className="controls">
           <label htmlFor="model-select">Detection model</label>
+
           <select
             id="model-select"
             value={model}
@@ -121,6 +129,7 @@ function App() {
             {models.length === 0 && (
               <option value={model}>{model}</option>
             )}
+
             {models.map(m => (
               <option key={m.key} value={m.key}>
                 {m.name}
@@ -129,6 +138,7 @@ function App() {
           </select>
         </div>
 
+        {/* API error message */}
         {error && (
           <p className="error-banner" role="alert">
             Could not reach the detection API at {API_URL} ({error}).
@@ -137,28 +147,38 @@ function App() {
           </p>
         )}
 
+        {/* Loading indicator */}
         {loading && !error && (
-          <p className="loading-note">Loading {modelName} results…</p>
+          <p className="loading-note">
+            Loading {modelName} results…
+          </p>
         )}
 
         {/* Statistics */}
         <div className="stats">
           <div className="stat-card">
             <h3>Total Alerts</h3>
-            <h2>{summary ? summary.flagged.toLocaleString() : '–'}</h2>
+            <h2>
+              {summary ? summary.flagged.toLocaleString() : '–'}
+            </h2>
           </div>
 
           <div className="stat-card">
             <h3>Pending Investigation</h3>
-            <h2>{summary ? summary.pending.toLocaleString() : '–'}</h2>
+            <h2>
+              {summary ? summary.pending.toLocaleString() : '–'}
+            </h2>
           </div>
 
           <div className="stat-card">
             <h3>Completed</h3>
-            <h2>{summary ? summary.completed.toLocaleString() : '–'}</h2>
+            <h2>
+              {summary ? summary.completed.toLocaleString() : '–'}
+            </h2>
           </div>
         </div>
 
+        {/* Detection model performance */}
         {summary && (
           <p className="model-metrics">
             {modelName} on {summary.rows.toLocaleString()} test records —
@@ -170,6 +190,7 @@ function App() {
         {/* Network traffic chart */}
         <section id="traffic" className="traffic-section">
           <h2>Network Traffic Overview</h2>
+
           <p>
             Normal vs. flagged records. The NSL-KDD test set has no
             timestamps, so each window is an equal slice of the file.
@@ -219,6 +240,7 @@ function App() {
         {/* Security alerts */}
         <section id="alerts">
           <h2>Recent Security Alerts</h2>
+
           <p>
             Top {ALERT_LIMIT} most suspicious records. Score is how many
             times over the model threshold the record is. Click an alert
@@ -242,6 +264,7 @@ function App() {
                   <td colSpan={5}>No alerts.</td>
                 </tr>
               )}
+
               {alerts.map(alert => (
                 <tr
                   key={alert.id}
