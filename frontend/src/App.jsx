@@ -62,6 +62,58 @@ function App() {
       })
   }, [])
   const [selectedAlert, setSelectedAlert] = useState(null)
+  const [trafficData, setTrafficData] = useState(networkData)
+  const [summary, setSummary] = useState(null)
+  const [extraDataLoaded, setExtraDataLoaded] = useState(false)
+  const [extraDataError, setExtraDataError] = useState(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadExtraData() {
+      try {
+        const [summaryResponse, trafficResponse] = await Promise.all([
+          fetch('http://127.0.0.1:8000/summary', {
+            signal: controller.signal,
+          }),
+          fetch('http://127.0.0.1:8000/traffic?buckets=7', {
+            signal: controller.signal,
+          }),
+        ])
+
+        if (!summaryResponse.ok || !trafficResponse.ok) {
+          throw new Error('Failed to load dashboard statistics')
+        }
+
+        const [summaryResult, trafficResult] = await Promise.all([
+          summaryResponse.json(),
+          trafficResponse.json(),
+        ])
+
+        if (
+          typeof summaryResult.flagged !== 'number' ||
+          typeof summaryResult.pending !== 'number' ||
+          typeof summaryResult.completed !== 'number' ||
+          !Array.isArray(trafficResult)
+        ) {
+          throw new Error('Unexpected dashboard data')
+        }
+
+        if (controller.signal.aborted) return
+
+        setSummary(summaryResult)
+        setTrafficData(trafficResult)
+        setExtraDataLoaded(true)
+      } catch (error) {
+        if (controller.signal.aborted) return
+        console.error('Dashboard data error:', error)
+        setExtraDataError(true)
+      }
+    }
+
+    loadExtraData()
+    return () => controller.abort()
+  }, [])
 
   const selectedInvestigation = selectedAlert
     ? sampleInvestigations.find(
@@ -93,20 +145,20 @@ function App() {
         <div className="stats">
           <div className="stat-card">
             <h3>Total Alerts</h3>
-            <h2>{alerts.length}</h2>
+            <h2>{extraDataLoaded ? summary.flagged : alerts.length}</h2>
           </div>
 
           <div className="stat-card">
             <h3>Pending Investigation</h3>
             <h2>
-              {alerts.filter(a => a.status === 'pending').length}
+              {extraDataLoaded ? summary.pending : alerts.filter(a => a.status === 'pending').length}
             </h2>
           </div>
 
           <div className="stat-card">
             <h3>Completed</h3>
             <h2>
-              {alerts.filter(a => a.status === 'completed').length}
+              {extraDataLoaded ? summary.completed : alerts.filter(a => a.status === 'completed').length}
             </h2>
           </div>
         </div>
@@ -114,11 +166,15 @@ function App() {
         {/* Network traffic chart */}
         <section id="traffic" className="traffic-section">
           <h2>Network Traffic Overview</h2>
-          <p>Normal vs. anomalous records (sample data)</p>
+          <p>
+            {extraDataLoaded
+              ? 'Normal vs. anomalous records (NSL-KDD dataset windows)'
+              : 'Normal vs. anomalous records (sample data)'}
+          </p>
 
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={networkData}>
+              <LineChart data={trafficData}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="#334155"
@@ -294,6 +350,10 @@ function App() {
             </div>
           ))}
         </section>
+
+        {extraDataError && (
+          <p>Statistics and traffic are showing sample data because the API request failed.</p>
+        )}
 
         <p className="demo-note">
           {backendConnected
