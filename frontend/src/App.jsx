@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   LineChart,
   Line,
@@ -42,7 +42,25 @@ const networkData = [
 ]
 
 function App() {
-  const [alerts] = useState(sampleAlerts)
+  const [alerts, setAlerts] = useState(sampleAlerts)
+  const [backendConnected, setBackendConnected] = useState(false)
+
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/alerts?limit=50')
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to load alerts')
+        return response.json()
+      })
+      .then(data => {
+        if (!Array.isArray(data)) throw new Error('Invalid alerts')
+        setAlerts(data)
+        setBackendConnected(true)
+      })
+      .catch(error => {
+        console.error('CyberGuard API:', error)
+        setBackendConnected(false)
+      })
+  }, [])
   const [selectedAlert, setSelectedAlert] = useState(null)
 
   const selectedInvestigation = selectedAlert
@@ -278,7 +296,9 @@ function App() {
         </section>
 
         <p className="demo-note">
-          Demo data — backend not connected yet.
+          {backendConnected
+            ? 'Connected to CyberGuard AI backend — NSL-KDD detection results.'
+            : 'Demo data — backend not connected yet.'}
         </p>
       </main>
     </div>
