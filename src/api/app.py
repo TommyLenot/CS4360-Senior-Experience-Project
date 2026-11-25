@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from src.detection.columns import COLUMNS, FEATURES, family
 from src.detection.preprocess import load_preprocessor, preprocess
 from src.detection.detectors import load_all
+from src.detection.agent import Agent, DETECTORS
+from src.ingestion.result import InvestigationResult
 
 ROOT = Path(__file__).resolve().parents[2]  # repo root
 ART = str(ROOT / "artifacts")
@@ -33,6 +35,8 @@ demo = pd.read_csv(DEMO_PATH, header=None, names=COLUMNS)
 X_demo = preprocess(demo, scaler, columns)
 is_attack = (demo["label"] != "normal").to_numpy()
 _cache = {}
+agent = Agent(ART)
+_agent_cache = {}
 
 
 def run_demo(key):
@@ -128,24 +132,6 @@ def summary(model: str = "autoencoder"):
     }
 
 
-@app.get("/alerts")
-def alerts(model: str = "autoencoder", limit: int = Query(50, ge=1, le=1000)):
-    out = run_demo(model)
-    ratio = np.nan_to_num(out["ratio"], nan=0.0, posinf=1e6, neginf=0.0)
-    idx = np.where(out["flagged"])[0]
-    idx = idx[np.argsort(-ratio[idx])][:limit]  # most suspicious first
-    return [
-        {
-            "id": f"ALT-{i:05d}",
-            "type": family(demo.at[i, "label"]),
-            "true_label": demo.at[i, "label"],
-            "score": round(float(ratio[i]), 2),
-            "status": "pending",
-        }
-        for i in idx.tolist()
-    ]
-
-
 @app.get("/traffic")
 def traffic(model: str = "autoencoder", buckets: int = Query(7, ge=1, le=100)):
     flagged = run_demo(model)["flagged"]
@@ -155,6 +141,56 @@ def traffic(model: str = "autoencoder", buckets: int = Query(7, ge=1, le=100)):
     ]
 
 
+def run_agent():
+    # the agent reads Mahalanobis + autoencoder + Isolation Forest scores for every demo row, once
+    if "out" not in _agent_cache:
+        scores = {k: run_demo(k)["score"] for k in DETECTORS}
+        prior, _ = agent.prior(scores)
+        band = (prior > agent.zone_low) & (prior < agent.zone_high)  # the uncertain rows
+        prob, reasons = agent.investigate(demo, scores)
+        _agent_cache["out"] = (prob, reasons, band)
+    return _agent_cache["out"]
+
+
+def pick_alerts(model, limit, focus):
+    out = run_demo(model)
+    ratio = np.nan_to_num(out["ratio"], nan=0.0, posinf=1e6, neginf=0.0)
+    keep = out["flagged"]
+    if focus == "uncertain":
+        keep = keep & run_agent()[2]
+    idx = np.where(keep)[0]
+    idx = idx[np.argsort(-ratio[idx])][:limit]  # most suspicious first
+    return idx.tolist(), ratio
+
+
+@app.get("/alerts")
+def alerts(model: str = "autoencoder", limit: int = Query(50, ge=1, le=1000), focus: str = "top"):
+    idx, ratio = pick_alerts(model, limit, focus)
+    return [
+        {
+            "id": f"ALT-{i:05d}",
+            "type": family(demo.at[i, "label"]),
+            "true_label": demo.at[i, "label"],
+            "score": round(float(ratio[i]), 2),
+            "status": "pending",
+        }
+        for i in idx
+    ]
+
+
 @app.get("/investigations")
-def investigations():
-    return []  # filled in when the agent exists
+def investigations(model: str = "autoencoder", limit: int = Query(50, ge=1, le=1000), focus: str = "top"):
+    prob, reasons, _ = run_agent()
+    idx, _ = pick_alerts(model, limit, focus)  # same alerts, same order as /alerts
+    results = []
+    for i in idx:
+        verdict, confidence = agent.verdict(prob[i])
+        results.append(
+            InvestigationResult(
+                alert_id=f"ALT-{i:05d}",
+                verdict=verdict,
+                confidence_score=confidence,
+                explanation=reasons[i],
+            ).to_dict()
+        )
+    return results

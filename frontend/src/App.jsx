@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import { describeAlert, FAMILY_INFO } from './attackInfo'
 import {
   LineChart,
   Line,
@@ -29,6 +30,7 @@ async function getJson(path, signal) {
 function App() {
   const [models, setModels] = useState([])
   const [model, setModel] = useState('autoencoder')
+  const [focus, setFocus] = useState('top')
   const [summary, setSummary] = useState(null)
   const [alerts, setAlerts] = useState([])
   const [networkData, setNetworkData] = useState([])
@@ -55,13 +57,13 @@ function App() {
   // Load dashboard data for the selected model
   useEffect(() => {
     const controller = new AbortController()
-    const q = `model=${encodeURIComponent(model)}`
+    const q = `model=${encodeURIComponent(model)}&focus=${focus}`
 
     Promise.all([
       getJson(`/summary?${q}`, controller.signal),
       getJson(`/alerts?${q}&limit=${ALERT_LIMIT}`, controller.signal),
       getJson(`/traffic?${q}`, controller.signal),
-      getJson('/investigations', controller.signal),
+      getJson(`/investigations?${q}&limit=${ALERT_LIMIT}`, controller.signal),
     ])
       .then(([summaryData, alertData, trafficData, investigationData]) => {
         setSummary(summaryData)
@@ -78,10 +80,17 @@ function App() {
       })
 
     return () => controller.abort()
-  }, [model])
+  }, [model, focus])
 
   function changeModel(key) {
     setModel(key)
+    setLoading(true)
+    setError(null)
+    setSelectedAlert(null)
+  }
+
+  function changeFocus(value) {
+    setFocus(value)
     setLoading(true)
     setError(null)
     setSelectedAlert(null)
@@ -135,6 +144,17 @@ function App() {
                 {m.name}
               </option>
             ))}
+          </select>
+
+          <label htmlFor="focus-select">Show</label>
+
+          <select
+            id="focus-select"
+            value={focus}
+            onChange={event => changeFocus(event.target.value)}
+          >
+            <option value="top">Most suspicious</option>
+            <option value="uncertain">Needs investigation</option>
           </select>
         </div>
 
@@ -242,7 +262,7 @@ function App() {
           <h2>Recent Security Alerts</h2>
 
           <p>
-            Top {ALERT_LIMIT} most suspicious records. Score is how many
+            Top {ALERT_LIMIT} {focus === 'uncertain' ? 'uncertain' : 'most suspicious'} records. Score is how many
             times over the model threshold the record is. Click an alert
             to view its details.
           </p>
@@ -352,6 +372,18 @@ function App() {
                   <strong>Explanation:</strong>{' '}
                   {selectedInvestigation.explanation}
                 </p>
+
+                <p>
+                  <strong>What this is:</strong>{' '}
+                  {describeAlert(selectedAlert.true_label)}
+                </p>
+
+                {FAMILY_INFO[selectedAlert.type] && (
+                  <p>
+                    <strong>Attack family:</strong>{' '}
+                    {FAMILY_INFO[selectedAlert.type]}
+                  </p>
+                )}
               </div>
             ) : (
               <p>
