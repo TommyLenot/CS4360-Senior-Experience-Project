@@ -122,11 +122,14 @@ def summary(model: str = "autoencoder"):
     flagged = run_demo(model)["flagged"]
     tp = int((flagged & is_attack).sum())
     n_flagged = int(flagged.sum())
+    n_investigated = int((flagged & run_agent()[2]).sum())  # flagged AND uncertain
     return {
         "rows": len(demo),
         "flagged": n_flagged,
         "pending": n_flagged,
         "completed": 0,
+        "investigated": n_investigated,
+        "confident": n_flagged - n_investigated,
         "precision": round(tp / max(n_flagged, 1), 4),
         "recall": round(tp / int(is_attack.sum()), 4),
     }
@@ -166,13 +169,14 @@ def pick_alerts(model, limit, focus):
 @app.get("/alerts")
 def alerts(model: str = "autoencoder", limit: int = Query(50, ge=1, le=1000), focus: str = "top"):
     idx, ratio = pick_alerts(model, limit, focus)
+    band = run_agent()[2]
     return [
         {
             "id": f"ALT-{i:05d}",
             "type": family(demo.at[i, "label"]),
             "true_label": demo.at[i, "label"],
             "score": round(float(ratio[i]), 2),
-            "status": "pending",
+            "status": "investigated" if band[i] else "confident",
         }
         for i in idx
     ]

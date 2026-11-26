@@ -58,8 +58,9 @@ class Agent:
 
     def explain(self, prior_p, steps):
         lines = [f"The detectors were unsure ({prior_p:.0%} attack), so the agent checked more evidence.",
-                 f"Start: {steps[0][2]:.0%} attack in the uncertain band"]
-        lines += [f"{label} (x{ratio:.2f}) -> {prob:.0%}" for label, ratio, prob in steps[1:]]
+                 f"Starting point: {steps[0][2]:.0%} of similar uncertain records were attacks"]
+        lines += [f"{label}: attack {'more' if ratio > 1 else 'less'} likely (odds x{ratio:.2f}) -> {prob:.0%}"
+                  for label, ratio, prob in steps[1:]]
         return " | ".join(lines)
 
     def verdict(self, p):

@@ -119,6 +119,16 @@ th {
   color: #a7f3d0;
 }
 
+.investigated {
+  background: #78350f;
+  color: #fde68a;
+}
+
+.confident {
+  background: #064e3b;
+  color: #a7f3d0;
+}
+
 .demo-note {
   margin-top: 20px;
 }
@@ -268,4 +278,26 @@ th {
 
 .model-metrics {
   margin: -15px 0 25px;
+}
+
+/* Alert details pop-up */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.modal-overlay .alert-details {
+  margin: 0;
+  width: 100%;
+  max-width: 640px;
+  max-height: 85vh;
+  overflow-y: auto;
+  border: 1px solid #334155;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }

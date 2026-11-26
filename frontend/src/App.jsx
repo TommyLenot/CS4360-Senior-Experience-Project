@@ -17,6 +17,15 @@ import './App.css'
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
 const ALERT_LIMIT = 50
 
+const scoreFormat = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+function formatScore(score) {
+  return `${scoreFormat.format(score)}×`
+}
+
 async function getJson(path, signal) {
   const res = await fetch(`${API_URL}${path}`, { signal })
 
@@ -82,6 +91,15 @@ function App() {
     return () => controller.abort()
   }, [model, focus])
 
+  // Escape closes the alert pop-up
+  useEffect(() => {
+    function onKey(event) {
+      if (event.key === 'Escape') setSelectedAlert(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   function changeModel(key) {
     setModel(key)
     setLoading(true)
@@ -94,6 +112,14 @@ function App() {
     setLoading(true)
     setError(null)
     setSelectedAlert(null)
+  }
+
+  function hoverText(alertId) {
+    const result = investigations.find(r => r.alert_id === alertId)
+    if (!result) return undefined
+    const parts = result.explanation.split(' | ')
+    const reason = parts.length > 2 ? parts.slice(2).join(' → ') : parts[0]
+    return `${result.verdict} (${Math.round(result.confidence_score * 100)}%): ${reason}`
   }
 
   const selectedInvestigation = selectedAlert
@@ -146,15 +172,15 @@ function App() {
             ))}
           </select>
 
-          <label htmlFor="focus-select">Show</label>
+          <label htmlFor="focus-select">Alert list</label>
 
           <select
             id="focus-select"
             value={focus}
             onChange={event => changeFocus(event.target.value)}
           >
-            <option value="top">Most suspicious</option>
-            <option value="uncertain">Needs investigation</option>
+            <option value="top">Highest scores</option>
+            <option value="uncertain">Uncertain (agent investigated)</option>
           </select>
         </div>
 
@@ -177,23 +203,23 @@ function App() {
         {/* Statistics */}
         <div className="stats">
           <div className="stat-card">
-            <h3>Total Alerts</h3>
+            <h3>Total Alerts (flagged by model)</h3>
             <h2>
               {summary ? summary.flagged.toLocaleString() : '–'}
             </h2>
           </div>
 
           <div className="stat-card">
-            <h3>Pending Investigation</h3>
+            <h3>Investigated by Agent</h3>
             <h2>
-              {summary ? summary.pending.toLocaleString() : '–'}
+              {summary ? summary.investigated.toLocaleString() : '–'}
             </h2>
           </div>
 
           <div className="stat-card">
-            <h3>Completed</h3>
+            <h3>Confident (no investigation needed)</h3>
             <h2>
-              {summary ? summary.completed.toLocaleString() : '–'}
+              {summary ? summary.confident.toLocaleString() : '–'}
             </h2>
           </div>
         </div>
@@ -262,19 +288,21 @@ function App() {
           <h2>Recent Security Alerts</h2>
 
           <p>
-            Top {ALERT_LIMIT} {focus === 'uncertain' ? 'uncertain' : 'most suspicious'} records. Score is how many
-            times over the model threshold the record is. Click an alert
-            to view its details.
+            {focus === 'uncertain'
+              ? `The ${ALERT_LIMIT} highest-scoring alerts the detectors were unsure about, each investigated by the agent.`
+              : `The ${ALERT_LIMIT} alerts with the highest scores.`}{' '}
+            Score shows how many times over the alert threshold a record
+            is. Click an alert to view its details.
           </p>
 
           <table>
             <thead>
               <tr>
                 <th>Alert ID</th>
-                <th>Attack Type</th>
-                <th>True Label</th>
-                <th>Anomaly Score</th>
-                <th>Status</th>
+                <th>Attack Family</th>
+                <th>Attack Name (dataset label)</th>
+                <th>Score (× threshold)</th>
+                <th>Agent</th>
               </tr>
             </thead>
 
@@ -289,6 +317,7 @@ function App() {
                 <tr
                   key={alert.id}
                   className="clickable-row"
+                  title={hoverText(alert.id)}
                   onClick={() => setSelectedAlert(alert)}
                   onKeyDown={event => {
                     if (
@@ -305,7 +334,7 @@ function App() {
                   <td>{alert.id}</td>
                   <td>{alert.type}</td>
                   <td>{alert.true_label}</td>
-                  <td>{alert.score.toFixed(2)}×</td>
+                  <td>{formatScore(alert.score)}</td>
                   <td>
                     <span className={`status ${alert.status}`}>
                       {alert.status}
@@ -319,7 +348,17 @@ function App() {
 
         {/* Selected alert details */}
         {selectedAlert && (
-          <section className="alert-details">
+          <div
+            className="modal-overlay"
+            onClick={() => setSelectedAlert(null)}
+          >
+          <section
+            className="alert-details"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Selected alert details"
+            onClick={event => event.stopPropagation()}
+          >
             <div className="details-header">
               <h2>Selected Alert Details</h2>
 
@@ -336,20 +375,20 @@ function App() {
             </p>
 
             <p>
-              <strong>Attack Type:</strong> {selectedAlert.type}
+              <strong>Attack Family:</strong> {selectedAlert.type}
             </p>
 
             <p>
-              <strong>True Label:</strong> {selectedAlert.true_label}
+              <strong>Attack Name (dataset label):</strong> {selectedAlert.true_label}
             </p>
 
             <p>
-              <strong>Anomaly Score:</strong>{' '}
-              {selectedAlert.score.toFixed(2)}× threshold
+              <strong>Score:</strong>{' '}
+              {formatScore(selectedAlert.score)} the alert threshold ({selectedAlert.score.toFixed(2)}×)
             </p>
 
             <p>
-              <strong>Status:</strong> {selectedAlert.status}
+              <strong>Agent:</strong> {selectedAlert.status}
             </p>
 
             {selectedInvestigation ? (
@@ -362,19 +401,19 @@ function App() {
                 </p>
 
                 <p>
-                  <strong>Confidence:</strong>{' '}
+                  <strong>Confidence in verdict:</strong>{' '}
                   {(
                     selectedInvestigation.confidence_score * 100
                   ).toFixed(0)}%
                 </p>
 
                 <p>
-                  <strong>Explanation:</strong>{' '}
+                  <strong>Why the agent decided this:</strong>{' '}
                   {selectedInvestigation.explanation}
                 </p>
 
                 <p>
-                  <strong>What this is:</strong>{' '}
+                  <strong>About this attack:</strong>{' '}
                   {describeAlert(selectedAlert.true_label)}
                 </p>
 
@@ -391,6 +430,7 @@ function App() {
               </p>
             )}
           </section>
+          </div>
         )}
 
         {/* AI investigation results */}
@@ -402,8 +442,7 @@ function App() {
 
           {investigations.length === 0 && (
             <p className="empty-note">
-              No investigations yet. Results will appear here once the
-              AI investigation component is connected.
+              No investigations for the alerts shown.
             </p>
           )}
 
@@ -419,12 +458,12 @@ function App() {
               </p>
 
               <p>
-                <strong>Confidence:</strong>{' '}
+                <strong>Confidence in verdict:</strong>{' '}
                 {(result.confidence_score * 100).toFixed(0)}%
               </p>
 
               <p>
-                <strong>AI Explanation:</strong>{' '}
+                <strong>Why the agent decided this:</strong>{' '}
                 {result.explanation}
               </p>
             </div>
@@ -432,8 +471,8 @@ function App() {
         </section>
 
         <p className="demo-note">
-          Live data from the detection API ({API_URL}), replaying the
-          NSL-KDD test set.
+          Replay of the NSL-KDD test file, served by the detection API
+          ({API_URL}). This is recorded data, not live network traffic.
         </p>
       </main>
     </div>
