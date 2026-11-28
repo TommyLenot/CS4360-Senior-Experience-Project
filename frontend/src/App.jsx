@@ -40,6 +40,8 @@ function App() {
   const [models, setModels] = useState([])
   const [model, setModel] = useState('autoencoder')
   const [focus, setFocus] = useState('top')
+  const [datasets, setDatasets] = useState([])
+  const [dataset, setDataset] = useState('nslkdd')
   const [summary, setSummary] = useState(null)
   const [alerts, setAlerts] = useState([])
   const [networkData, setNetworkData] = useState([])
@@ -48,12 +50,12 @@ function App() {
   const [error, setError] = useState(null)
   const [selectedAlert, setSelectedAlert] = useState(null)
 
-  // Load available detection models
+  // Load the list of datasets once
   useEffect(() => {
     const controller = new AbortController()
 
-    getJson('/models', controller.signal)
-      .then(setModels)
+    getJson('/datasets', controller.signal)
+      .then(setDatasets)
       .catch(err => {
         if (err.name !== 'AbortError') {
           setError(err.message)
@@ -63,10 +65,25 @@ function App() {
     return () => controller.abort()
   }, [])
 
+  // Load available detection models for the selected dataset
+  useEffect(() => {
+    const controller = new AbortController()
+
+    getJson(`/models?dataset=${dataset}`, controller.signal)
+      .then(setModels)
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          setError(err.message)
+        }
+      })
+
+    return () => controller.abort()
+  }, [dataset])
+
   // Load dashboard data for the selected model
   useEffect(() => {
     const controller = new AbortController()
-    const q = `model=${encodeURIComponent(model)}&focus=${focus}`
+    const q = `model=${encodeURIComponent(model)}&focus=${focus}&dataset=${dataset}`
 
     Promise.all([
       getJson(`/summary?${q}`, controller.signal),
@@ -89,7 +106,7 @@ function App() {
       })
 
     return () => controller.abort()
-  }, [model, focus])
+  }, [model, focus, dataset])
 
   // Escape closes the alert pop-up
   useEffect(() => {
@@ -99,6 +116,16 @@ function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  function changeDataset(key) {
+    const next = datasets.find(d => d.key === key)
+    setDataset(key)
+    setModel(next?.default_model ?? 'autoencoder')
+    setModels([])
+    setLoading(true)
+    setError(null)
+    setSelectedAlert(null)
+  }
 
   function changeModel(key) {
     setModel(key)
@@ -131,6 +158,9 @@ function App() {
   const modelName =
     models.find(m => m.key === model)?.name ?? model
 
+  const datasetName =
+    datasets.find(d => d.key === dataset)?.name ?? dataset
+
   return (
     <div className="app">
       {/* Sidebar */}
@@ -153,6 +183,30 @@ function App() {
 
         {/* Detection model selector */}
         <div className="controls">
+          <label htmlFor="dataset-select">Dataset</label>
+
+          <select
+            id="dataset-select"
+            value={dataset}
+            onChange={event => changeDataset(event.target.value)}
+            disabled={datasets.length === 0}
+          >
+            {datasets.length === 0 && (
+              <option value={dataset}>{dataset}</option>
+            )}
+
+            {datasets.map(d => (
+              <option
+                key={d.key}
+                value={d.key}
+                disabled={!d.ready}
+                title={d.ready ? undefined : d.reason}
+              >
+                {d.name}{d.ready ? '' : ' (not set up yet)'}
+              </option>
+            ))}
+          </select>
+
           <label htmlFor="model-select">Detection model</label>
 
           <select
