@@ -1,4 +1,5 @@
 import json
+import os
 import joblib
 import numpy as np
 import torch
@@ -100,6 +101,8 @@ def load_all(art="artifacts"):
     for pct in (5, 1):
         for kind, label in (("baseline", "Baseline"), ("selftrained", "Self-trained")):
             key = f"lr_{kind}_{pct}"
+            if not os.path.exists(f"{art}/{key}.joblib"):
+                continue  # this dataset has no label-scarcity models
             models[key] = LogReg(
                 joblib.load(f"{art}/{key}.joblib"),
                 f"Logistic Regression, {label} ({pct}% labels)",
